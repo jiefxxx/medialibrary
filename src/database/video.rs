@@ -1,62 +1,7 @@
-use rusqlite::Connection;
+use super::SqlLibrary;
 
-pub struct SqlLibrary{
-    conn: Connection
-}
 
 impl SqlLibrary{
-    pub fn new(path: &str) ->  Result<SqlLibrary, rusqlite::Error>{
-        Ok(
-            SqlLibrary{
-                conn: Connection::open(path)?
-            }
-        )
-    }
-
-    pub fn init_db(&self) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS videos (
-                VideoID INTEGER PRIMARY KEY NOT NULL,
-                Path TEXT NOT NULL UNIQUE,
-                VideoMediaType INTEGER,
-                VideoMediaID INTEGER,
-                Duration FLOAT,
-                BitRate FLOAT,
-                Codec TEXT,
-                Width INTEGER,
-                Height INTEGER,
-                Size INTEGER,
-                Adding TEXT
-            )",
-            [],
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS lastTime (
-                LastTimeVideoID INTEGER NOT NULL,
-                LastTimeUserID INTEGER NOT NULL,
-                LastTimeValue INTEGER,
-                unique(LastTimeVideoID, LastTimeUserID))",
-            [],
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS audios (
-                AudioVideoID INTEGER NOT NULL,
-                AudioLanguage TEXT,
-                unique(AudioVideoID, AudioLanguage))",
-            [],
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS subtitles (
-                SubtitleVideoID INTEGER NOT NULL,
-                SubtitleLanguage TEXT,
-                unique(SubtitleVideoID, SubtitleLanguage))",
-            [],
-        )?;
-        Ok(())
-    }
 
     pub fn create_video(&self, path: &str, media_type: u8, duration: f32, 
         bit_rate: f32, codec: &str, width: u32, height: u32, size: usize) -> Result<i64, rusqlite::Error>{
@@ -142,7 +87,7 @@ impl SqlLibrary{
 
     pub fn get_video_id(&self, path: &str) -> Result<i64, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT videoID from videos
+            "SELECT VideoID from videos
              WHERE path = ?1",
         )?;
     
@@ -153,6 +98,23 @@ impl SqlLibrary{
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
+    pub fn get_video_unknown(&self) -> Result<Vec<(i64, u8, String)>, rusqlite::Error>{
+        let mut stmt = self.conn.prepare(
+            "SELECT VideoID, VideoMediaType, Path from videos
+             WHERE VideoMediaID = NULL",
+        )?;
+    
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+
+        let mut ret = Vec::new();
+        for row in rows{
+            ret.push(row?);
+        }
+        Ok(ret)
+    }
+    
+
 
 }
-

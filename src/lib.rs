@@ -45,8 +45,16 @@ impl Library {
         self.conn.edit_video_media_id(video_id, media_id).unwrap();
     }
 
+    pub fn edit_video_path(&self, video_id: i64, path: &str){
+        self.conn.edit_video_path(video_id, path).unwrap();
+    }
+
     pub fn get_video_id(&self, path: &str) ->PyResult<i64>{
         Ok(self.conn.get_video_id(path).unwrap())
+    }
+
+    pub fn get_unknown(&self) -> PyResult<Vec<(i64, u8, String)>>{
+        Ok(self.conn.get_video_unknown().unwrap())
     }
 
 }
