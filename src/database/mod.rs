@@ -2,7 +2,6 @@ use rusqlite::Connection;
 
 mod video;
 mod movie;
-mod actor;
 mod tv;
 
 pub struct SqlLibrary{
@@ -72,7 +71,7 @@ impl SqlLibrary{
                 Title TEXT,
                 ReleaseDate TEXT,
                 Overview TEXT,
-                VoteAverage FLOAT,
+                Popularity FLOAT,
                 PosterPath TEXT,
                 BackdropPath TEXT)",
             [],
@@ -96,9 +95,10 @@ impl SqlLibrary{
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS movie_casts (
                 MovieID INTEGER NOT NULL,
-                ActorID INTEGER NOT NULL,
+                ActorName TEXT,
                 Character TEXT,
-                UNIQUE(MovieID,ActorID,Character))",
+                Order INTEGER,
+                UNIQUE(MovieID,ActorName,Character))",
             [],
         )?;
 
@@ -112,7 +112,7 @@ impl SqlLibrary{
                 Title TEXT,
                 ReleaseDate TEXT,
                 Overview TEXT,
-                VoteAverage FLOAT,
+                Popularity FLOAT,
                 PosterPath TEXT,
                 BackdropPath TEXT)",
             [],
@@ -136,52 +136,31 @@ impl SqlLibrary{
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS tv_casts (
                 TvID INTEGER NOT NULL,
-                ActorID INTEGER NOT NULL,
+                ActorName TEXT,
                 Character TEXT,
-                UNIQUE(TvID,ActorID,Character))",
+                Order INTEGER,
+                UNIQUE(TvID,ActorName,Character))",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS tv_episode_links (
+            "CREATE TABLE IF NOT EXISTS seasons (
                 TvID INTEGER NOT NULL,
-                EpisodeID INTEGER NOT NULL,
-                UNIQUE(TvID,EpisodeID))",
+                SeasonNumber INTEGER NOT NULL,
+                EpisodeCount INTEGER,
+                Name TEXT,
+                Overview TEXT,
+                PosterPath TEXT,
+                )",
             [],
         )?;
 
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS episodes (
                 EpisodeID INTEGER PRIMARY KEY NOT NULL,
-                EpisodeTitle TEXT,
-                EpisodeReleaseDate TEXT,
-                EpisodeOverview TEXT,
-                EpisodeVoteAverage FLOAT,
+                TvID INTEGER NOT NULL,
                 SeasonNumber INTEGER NOT NULL,
                 EpisodeNumber INTEGER NOT NULL)",
-            [],
-        )?;
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS episode_casts (
-                EpisodeID INTEGER NOT NULL,
-                ActorID INTEGER NOT NULL,
-                Character TEXT,
-                UNIQUE(EpisodeID,ActorID,Character))",
-            [],
-        )?;
-
-        //actor part
-
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS actors (
-                ActorID NTEGER PRIMARY KEY NOT NULL,
-                Birthday  TEXT,
-                Deathday  TEXT,
-                Gender  INTEGER,
-                Name  TEXT,
-                PlaceOfBirth  TEXT,
-                ProfilePath  TEXT)",
             [],
         )?;
 
