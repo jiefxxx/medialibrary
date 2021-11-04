@@ -8,6 +8,9 @@ use database::SqlLibrary;
 use tmdb::model::*;
 use tmdb::themoviedb::*;
 
+use std::io;
+use std::fs::File;
+
 fn string_to_static_str(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
@@ -17,18 +20,19 @@ fn string_to_static_str(s: String) -> &'static str {
 struct Library {
     conn: SqlLibrary,
     tmdb: TMDb,
+    rsc_path: String,
 }
 
 #[pymethods]
 impl Library {
     #[new]
-    fn new(database_path: &str, api_key: &str, language: &str) -> Self {
+    fn new(database_path: &str, api_key: &str, language: &str, rsc_path: String) -> Self {
         let api_key = string_to_static_str(api_key.to_string());
         let language = string_to_static_str(language.to_string());
         let tmdb = TMDb { api_key: api_key, language: &language};
         let conn = SqlLibrary::new(database_path).unwrap();
         conn.init_db().unwrap();
-        Library{ conn, tmdb}
+        Library{ conn, tmdb, rsc_path}
     }
 
     pub fn create_video(&self, path: &str, media_type: u8, duration: f32, bit_rate: f32, 
@@ -132,7 +136,7 @@ impl Library {
             }
         }
 
-        self.update_rsc_poster(&poster_path)?;
+        self.update_rsc(&poster_path)?;
 
         Ok(())
     }
@@ -180,8 +184,8 @@ impl Library {
                 &season.name, &season.overview, &poster_path){
                 return Err(PyReferenceError::new_err(format!("database error create tv season {}", e)))
             }
-            
-            self.update_rsc_poster(&poster_path)?;
+
+            self.update_rsc(&poster_path)?;
         }
 
         if let Some(credits) = tv.credits{
@@ -192,7 +196,7 @@ impl Library {
             }
         }
 
-        self.update_rsc_poster(&poster_path)?;
+        self.update_rsc(&poster_path)?;
 
         Ok(())
 
@@ -214,8 +218,24 @@ impl Library {
         })
     }
 
-    fn update_rsc_poster(&self, poster_path: &str) -> PyResult<()>{
-        todo!()
+    fn update_rsc(&self, rsc_path: &str) -> PyResult<()>{
+        if rsc_path.len() == 0{
+            return Ok(())
+        }
+
+        let resp = match reqwest::blocking::get("https://image.tmdb.org/t/p/original".to_string() + rsc_path){
+            Ok(resp) => resp.bytes().unwrap(),
+            Err(e) => return Err(PyReferenceError::new_err(format!("reqwest error getting poster path {}", e))),
+        };
+
+        let mut out = match File::create(self.rsc_path.clone()+rsc_path){
+            Ok(out) => out,
+            Err(e) => return Err(PyReferenceError::new_err(format!("file create error {}", e))),
+        };
+
+        io::copy(&mut resp.as_ref(), &mut out).expect("failed to copy content");
+
+        Ok(())
     }
 
     pub fn get_video_id(&self, path: &str) ->PyResult<u64>{
