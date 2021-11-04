@@ -4,7 +4,7 @@ use super::SqlLibrary;
 impl SqlLibrary{
 
     pub fn create_video(&self, path: &str, media_type: u8, duration: f32, 
-        bit_rate: f32, codec: &str, width: u32, height: u32, size: usize) -> Result<i64, rusqlite::Error>{
+        bit_rate: f32, codec: &str, width: u32, height: u32, size: usize) -> Result<u64, rusqlite::Error>{
 
         self.conn.execute(
             "INSERT INTO videos (
@@ -27,10 +27,10 @@ impl SqlLibrary{
             &size.to_string()],
         )?;
 
-        Ok(self.conn.last_insert_rowid())
+        Ok(self.conn.last_insert_rowid() as u64)
     }
 
-    pub fn create_video_subtitle(&self, video_id: i64, language: &str) -> Result<(), rusqlite::Error>{
+    pub fn create_video_subtitle(&self, video_id: u64, language: &str) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO subtitles (
                 SubtitleVideoID,
@@ -40,7 +40,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn create_video_audio(&self, video_id: i64, language: &str) -> Result<(), rusqlite::Error>{
+    pub fn create_video_audio(&self, video_id: u64, language: &str) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO audios (
                 AudioVideoID,
@@ -50,7 +50,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn edit_video_media_id(&self, video_id: i64, media_id: i64) -> Result<(), rusqlite::Error>{
+    pub fn edit_video_media_id(&self, video_id: u64, media_id: u64) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "UPDATE videos SET VideoMediaID = ?1 WHERE VideoID = ?2",
             &[
@@ -60,7 +60,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn edit_video_path(&self, video_id: i64, path: &str) -> Result<(), rusqlite::Error>{
+    pub fn edit_video_path(&self, video_id: u64, path: &str) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "UPDATE videos SET VideoMediaID = ?1 WHERE VideoID = ?2",
             &[
@@ -71,7 +71,7 @@ impl SqlLibrary{
     }
 
 
-    pub fn edit_last_time(&self, video_id: i64, user_id: i64, last_time: i64) -> Result<(), rusqlite::Error>{
+    pub fn edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT OR REPLACE INTO lastTime (
                 LastTimeVideoID,
@@ -85,7 +85,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn get_video_id(&self, path: &str) -> Result<i64, rusqlite::Error> {
+    pub fn get_video_id(&self, path: &str) -> Result<u64, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "SELECT VideoID from videos
              WHERE path = ?1",
@@ -98,7 +98,21 @@ impl SqlLibrary{
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
 
-    pub fn get_video_unknown(&self) -> Result<Vec<(i64, u8, String)>, rusqlite::Error>{
+    pub fn get_video_media_type(&self, video_id: u64) -> Result<Option<u8>, rusqlite::Error>{
+        let mut stmt = self.conn.prepare(
+            "SELECT MediaType from videos
+             WHERE VideoID = ?1",
+        )?;
+    
+        let rows = stmt.query_map(&[&video_id.to_string()], |row| row.get(0))?;
+        for row in rows{
+            return Ok(Some(row?))
+        }
+        Ok(None)
+    }
+    
+
+    pub fn get_video_unknown(&self) -> Result<Vec<(u64, u8, String)>, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
             "SELECT VideoID, VideoMediaType, Path from videos
              WHERE VideoMediaID = NULL",

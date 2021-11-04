@@ -2,9 +2,9 @@ use super::SqlLibrary;
 
 
 impl SqlLibrary{
-    pub fn create_movie(&self ,movie_id: i64, original_title: &str, 
+    pub fn create_movie(&self ,movie_id: u64, original_title: &str, 
         original_language: &str, title: &str, release_date: &str, 
-        overview: &str, vote_average: f32, poster_path: &str) -> Result<(), rusqlite::Error>{
+        overview: &str, popularity: f64, poster_path: &str) -> Result<(), rusqlite::Error>{
 
         self.conn.execute(
             "INSERT INTO movies (
@@ -14,7 +14,7 @@ impl SqlLibrary{
                 Title,
                 ReleaseDate,
                 Overview,
-                VoteAverage,
+                Popularity,
                 PosterPath,
                 BackdropPath) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
 
@@ -25,14 +25,14 @@ impl SqlLibrary{
             title,
             release_date,
             overview,
-            &vote_average.to_string(),
+            &popularity.to_string(),
             poster_path],
         )?;
 
         Ok(())
     }
 
-    pub fn create_movie_genre(&self ,genre_id: i64, genre_name: &str) -> Result<(), rusqlite::Error>{
+    pub fn create_movie_genre(&self ,genre_id: u64, genre_name: &str) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT OR IGNORE INTO movie_genres (
                 GenreID,
@@ -46,23 +46,25 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn create_movie_cast(&self, movie_id: i64, actor_id: i64, character: &str) -> Result<(), rusqlite::Error>{
+    pub fn create_movie_cast(&self, movie_id: u64, actor_name: &str, character: &str, order: u32) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO movie_casts (
-                ActorID,
+                ActorName,
                 MovieID,
-                Character) values (?1, ?2, ?3)",
+                Character,
+                Order) values (?1, ?2, ?3, ?4)",
 
             &[
-            &actor_id.to_string(),
+            actor_name,
             &movie_id.to_string(),
-            character],
+            character, 
+            &order.to_string()],
         )?;
 
         Ok(())
     }
 
-    pub fn link_movie_genre(&self, movie_id: i64, genre_id: i64) -> Result<(), rusqlite::Error>{
+    pub fn link_movie_genre(&self, movie_id: u64, genre_id: u64) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO movie_genre_links (
                 GenreID,
@@ -76,7 +78,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn movie_exist(&self, movie_id: i64) -> Result<bool, rusqlite::Error>{
+    pub fn movie_exist(&self, movie_id: u64) -> Result<bool, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
             "SELECT OriginalTitle from movies
              WHERE MediaID = ?1",

@@ -19,3 +19,4 @@ features = ["extension-module"]
 
 [dependencies]
 rusqlite = "0.26.1"
+tmdb = "3.0.0"
