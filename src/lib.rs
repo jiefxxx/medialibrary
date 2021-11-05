@@ -1,15 +1,20 @@
+#[macro_use]
+extern crate serde_derive;
+
 mod database;
+mod rustmdb;
 
 use pyo3::prelude::*;
 use pyo3::exceptions::PyReferenceError;
 
 use database::SqlLibrary;
 
-use tmdb::model::*;
-use tmdb::themoviedb::*;
+use rustmdb::Tmdb;
 
 use std::io;
 use std::fs::File;
+
+use crate::rustmdb::{Movie, Tv};
 
 fn string_to_static_str(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
@@ -17,9 +22,9 @@ fn string_to_static_str(s: String) -> &'static str {
 
 
 #[pyclass]
-struct Library {
+struct Library{
     conn: SqlLibrary,
-    tmdb: TMDb,
+    tmdb: Tmdb,
     rsc_path: String,
 }
 
@@ -29,7 +34,7 @@ impl Library {
     fn new(database_path: &str, api_key: &str, language: &str, rsc_path: String) -> Self {
         let api_key = string_to_static_str(api_key.to_string());
         let language = string_to_static_str(language.to_string());
-        let tmdb = TMDb { api_key: api_key, language: &language};
+        let tmdb = Tmdb::new(api_key, language);
         let conn = SqlLibrary::new(database_path).unwrap();
         conn.init_db().unwrap();
         Library{ conn, tmdb, rsc_path}
@@ -91,6 +96,13 @@ impl Library {
         Ok(())
     }
 
+    pub fn find_movie(&self, title: &str, year: u64) -> PyResult<Option<u64>>{
+        let movies  = self.tmdb.search_movie(title).year(year).request().unwrap();
+        
+        movies.results[0].id;
+        Ok(None)
+    }
+
     fn update_db_movie(&self, movie_id: u64) -> PyResult<()>{
         match self.conn.movie_exist(movie_id) {
             Ok(true) => return Ok(()),
@@ -98,7 +110,7 @@ impl Library {
             _ => ()
         };
 
-        let movie: Movie = match self.tmdb.fetch().id(movie_id).append_credits().execute(){
+        let movie: Movie = match self.tmdb.movie(movie_id){
             Ok(movie) => movie,
             Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for MovieID {:?}", e, movie_id))),
         };
@@ -113,9 +125,14 @@ impl Library {
             None => "".to_string(),
         };
 
+        let backdrop_path = match movie.backdrop_path {
+            Some(backdrop_path) => backdrop_path,
+            None => "".to_string(),
+        };
+
         if let Err(e) = self.conn.create_movie(movie.id, 
             &movie.original_title, &movie.original_language, &movie.title, &movie.release_date,
-            &overview, movie.popularity, &poster_path){
+            &overview, movie.popularity, &poster_path, &backdrop_path){
             return Err(PyReferenceError::new_err(format!("database error create movie{}", e)))
         }
 
@@ -128,14 +145,13 @@ impl Library {
             }
         }
 
-        if let Some(credits) = movie.credits{
-            for cast in credits.cast{
-                if let Err(e) = self.conn.create_movie_cast(movie.id, &cast.name, &cast.character, cast.order.into()){
-                    return Err(PyReferenceError::new_err(format!("database error create movie cast {}", e)))
-                }
+        for cast in movie.credits.cast{
+            if let Err(e) = self.conn.create_movie_cast(movie.id, &cast.name, &cast.character, cast.order){
+                return Err(PyReferenceError::new_err(format!("database error create movie cast {}", e)))
             }
         }
 
+        self.update_rsc(&backdrop_path)?;
         self.update_rsc(&poster_path)?;
 
         Ok(())
@@ -148,7 +164,7 @@ impl Library {
             _ => ()
         };
 
-        let tv: TV = match self.tmdb.fetch().id(tv_id).append_credits().execute(){
+        let tv: Tv = match self.tmdb.tv(tv_id){
             Ok(tv) => tv,
             Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for MovieID {:?}", e, tv_id))),
         };
@@ -158,9 +174,19 @@ impl Library {
             None => "".to_string(),
         };
 
+        let backdrop_path = match tv.backdrop_path {
+            Some(backdrop_path) => backdrop_path,
+            None => "".to_string(),
+        };
+
+        let overview = match tv.overview {
+            Some(overview) => overview,
+            None => "".to_string(),
+        };
+
         if let Err(e) = self.conn.create_tv(tv.id, 
             &tv.original_name, &tv.original_language, &tv.name, &tv.first_air_date,
-            &tv.overview, tv.popularity, &poster_path){
+            &overview, tv.popularity, &poster_path, &backdrop_path){
             return Err(PyReferenceError::new_err(format!("database error create movie{}", e)))
         }
 
@@ -175,27 +201,31 @@ impl Library {
 
         for season in tv.seasons {
 
+            let overview = match season.overview {
+                Some(overview) => overview,
+                None => "".to_string(),
+            };
+
             let poster_path = match season.poster_path {
                 Some(poster_path) => poster_path,
                 None => "".to_string(),
             };
             
             if let Err(e) = self.conn.create_season(tv.id, season.season_number, season.episode_count, 
-                &season.name, &season.overview, &poster_path){
+                &season.name, &overview, &poster_path){
                 return Err(PyReferenceError::new_err(format!("database error create tv season {}", e)))
             }
 
             self.update_rsc(&poster_path)?;
         }
 
-        if let Some(credits) = tv.credits{
-            for cast in credits.cast{
-                if let Err(e) = self.conn.create_tv_cast(tv.id, &cast.name, &cast.character, cast.order){
-                    return Err(PyReferenceError::new_err(format!("database error create movie cast {}", e)))
-                }
+        for cast in tv.credits.cast{
+            if let Err(e) = self.conn.create_tv_cast(tv.id, &cast.name, &cast.character, cast.order){
+                return Err(PyReferenceError::new_err(format!("database error create movie cast {}", e)))
             }
         }
 
+        self.update_rsc(&backdrop_path)?;
         self.update_rsc(&poster_path)?;
 
         Ok(())

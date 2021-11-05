@@ -4,7 +4,7 @@ use super::SqlLibrary;
 impl SqlLibrary{
     pub fn create_tv(&self ,tv_id: u64, original_title: &str, 
         original_language: &str, title: &str, release_date: &str, 
-        overview: &str, popularity: f64, poster_path: &str) -> Result<(), rusqlite::Error>{
+        overview: &str, popularity: f64, poster_path: &str, backdrop_path: &str) -> Result<(), rusqlite::Error>{
 
         self.conn.execute(
             "INSERT INTO tvs (
@@ -26,7 +26,8 @@ impl SqlLibrary{
             release_date,
             overview,
             &popularity.to_string(),
-            poster_path],
+            poster_path,
+            backdrop_path],
         )?;
 
         Ok(())
@@ -46,7 +47,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn create_tv_cast(&self, tv_id: u64, actor_name: &str, character: &str, order: u32) -> Result<(), rusqlite::Error>{
+    pub fn create_tv_cast(&self, tv_id: u64, actor_name: &str, character: &str, order: u64) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO tv_casts (
                 ActorName,
@@ -64,7 +65,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn create_season(&self, tv_id: u64, season: u32, episode_count: u32, name: &str, overview: &str, poster_path: &str) -> Result<(), rusqlite::Error>{
+    pub fn create_season(&self, tv_id: u64, season: u64, episode_count: u64, name: &str, overview: &str, poster_path: &str) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO seasons (
                 TvID INTEGER NOT NULL,

@@ -19,8 +19,9 @@ features = ["extension-module"]
 
 [dependencies.reqwest]
 version = "0.11.6"
-features = ["blocking"]
+features = ["blocking", "json"]
 
 [dependencies]
 rusqlite = "0.26.1"
-tmdb = "3.0.0"
+serde = "1.0.130"
+serde_derive = "1.0.130"

@@ -4,7 +4,7 @@ use super::SqlLibrary;
 impl SqlLibrary{
     pub fn create_movie(&self ,movie_id: u64, original_title: &str, 
         original_language: &str, title: &str, release_date: &str, 
-        overview: &str, popularity: f64, poster_path: &str) -> Result<(), rusqlite::Error>{
+        overview: &str, popularity: f64, poster_path: &str, backdrop_path: &str) -> Result<(), rusqlite::Error>{
 
         self.conn.execute(
             "INSERT INTO movies (
@@ -26,7 +26,8 @@ impl SqlLibrary{
             release_date,
             overview,
             &popularity.to_string(),
-            poster_path],
+            poster_path,
+            backdrop_path],
         )?;
 
         Ok(())
@@ -46,7 +47,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn create_movie_cast(&self, movie_id: u64, actor_name: &str, character: &str, order: u32) -> Result<(), rusqlite::Error>{
+    pub fn create_movie_cast(&self, movie_id: u64, actor_name: &str, character: &str, order: u64) -> Result<(), rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO movie_casts (
                 ActorName,
