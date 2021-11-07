@@ -1,12 +1,16 @@
+use crate::rustmdb::Movie;
+
 use super::SqlLibrary;
 
 
 impl SqlLibrary{
-    pub fn create_movie(&self ,movie_id: u64, original_title: &str, 
-        original_language: &str, title: &str, release_date: &str, 
-        overview: &str, popularity: f64, poster_path: &str, backdrop_path: &str) -> Result<(), rusqlite::Error>{
+    pub fn create_movie(&mut self, movie: &Movie) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+        let tx = self.conn.transaction()?;
 
-        self.conn.execute(
+        let mut person_ids = Vec::new();
+        let mut rsc_path = Vec::new();
+
+        tx.execute(
             "INSERT INTO movies (
                 MovieID,
                 OriginalTitle,
@@ -16,67 +20,85 @@ impl SqlLibrary{
                 Overview,
                 Popularity,
                 PosterPath,
-                BackdropPath) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                BackdropPath,
+                VoteAverage,
+                VoteCount,
+                Tagline,
+                Status,
+                Adult) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
 
             &[
-            &movie_id.to_string(),
-            original_title,
-            original_language,
-            title,
-            release_date,
-            overview,
-            &popularity.to_string(),
-            poster_path,
-            backdrop_path],
+                &movie.id.to_string(),
+                &movie.original_title,
+                &movie.original_language,
+                &movie.title,
+                &movie.release_date,
+                &movie.overview.as_ref().unwrap_or(&"".to_string()),
+                &movie.popularity.to_string(),
+                &movie.poster_path.as_ref().unwrap_or(&"".to_string()),
+                &movie.backdrop_path.as_ref().unwrap_or(&"".to_string()),
+                &movie.vote_average.to_string(),
+                &movie.vote_count.to_string(),
+                &movie.tagline.as_ref().unwrap_or(&"".to_string()),
+                &movie.status,
+                &movie.adult.to_string()],
         )?;
 
-        Ok(())
-    }
+        if let Some(backdrop_path) = &movie.backdrop_path{
+            rsc_path.push(backdrop_path.clone())
+        }
 
-    pub fn create_movie_genre(&self ,genre_id: u64, genre_name: &str) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
-            "INSERT OR IGNORE INTO movie_genres (
-                GenreID,
-                GenreName) values (?1, ?2)",
+        if let Some(poster_path) = &movie.poster_path{
+            rsc_path.push(poster_path.clone())
+        }
 
-            &[
-            &genre_id.to_string(),
-            genre_name],
-        )?;
+        for genre in &movie.genres{
+            tx.execute(
+                "INSERT OR IGNORE INTO movie_genres (
+                    GenreID,
+                    GenreName) values (?1, ?2)",
+    
+                &[
+                &genre.id.to_string(),
+                &genre.name],
+            )?;
 
-        Ok(())
-    }
+            tx.execute(
+                "INSERT INTO movie_genre_links (
+                    GenreID,
+                    MovieID) values (?1, ?2)",
+    
+                &[
+                &genre.id.to_string(),
+                &movie.id.to_string()],
+            )?;
+        }
 
-    pub fn create_movie_cast(&self, movie_id: u64, actor_name: &str, character: &str, order: u64) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
-            "INSERT INTO movie_casts (
-                ActorName,
-                MovieID,
-                Character,
-                Order) values (?1, ?2, ?3, ?4)",
+        for cast in &movie.credits.cast{
+            if cast.cast_id.is_none(){
+                continue
+            }
+    
+            tx.execute(
+                "INSERT INTO movie_casts (
+                    PersonID,
+                    MovieID,
+                    Character,
+                    Order) values (?1, ?2, ?3, ?4)",
+    
+                &[
+                &cast.cast_id.unwrap().to_string(),
+                &movie.id.to_string(),
+                &cast.character, 
+                &cast.order.to_string()],
+            )?;
 
-            &[
-            actor_name,
-            &movie_id.to_string(),
-            character, 
-            &order.to_string()],
-        )?;
+            person_ids.push(cast.cast_id.unwrap())
+        }
 
-        Ok(())
-    }
+        tx.commit()?;
 
-    pub fn link_movie_genre(&self, movie_id: u64, genre_id: u64) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
-            "INSERT INTO movie_genre_links (
-                GenreID,
-                MovieID) values (?1, ?2)",
-
-            &[
-            &genre_id.to_string(),
-            &movie_id.to_string()],
-        )?;
-
-        Ok(())
+        Ok((person_ids, rsc_path))
     }
 
     pub fn movie_exist(&self, movie_id: u64) -> Result<bool, rusqlite::Error>{

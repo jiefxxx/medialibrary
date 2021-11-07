@@ -64,7 +64,7 @@ impl Library {
         Ok(video_id)
     }
 
-    pub fn edit_movie(&self, video_id: u64, movie_id: u64) -> PyResult<()>{
+    pub fn edit_movie(&mut self, video_id: u64, movie_id: u64) -> PyResult<()>{
         match self.conn.get_video_media_type(video_id){
             Ok(Some(0)) => (),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error get video media type {}", e))),
@@ -79,7 +79,7 @@ impl Library {
         Ok(())
     }
 
-    pub fn edit_tv(&self, video_id: u64, tv_id: u64, season: u32, episode: u32) -> PyResult<()>{
+    pub fn edit_tv(&mut self, video_id: u64, tv_id: u64, season: u64, episode: u64) -> PyResult<()>{
         match self.conn.get_video_media_type(video_id){
             Ok(Some(1)) => (),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error get video media type {}", e))),
@@ -103,7 +103,7 @@ impl Library {
         Ok(None)
     }
 
-    fn update_db_movie(&self, movie_id: u64) -> PyResult<()>{
+    fn update_db_movie(&mut self, movie_id: u64) -> PyResult<()>{
         match self.conn.movie_exist(movie_id) {
             Ok(true) => return Ok(()),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error movie exist {}", e))),
@@ -115,49 +115,49 @@ impl Library {
             Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for MovieID {:?}", e, movie_id))),
         };
 
-        let overview = match movie.overview {
-            Some(overview) => overview,
-            None => "".to_string(),
+        match self.conn.create_movie(&movie){
+            Ok((person_ids, rsc_paths)) => {
+                for person_id in person_ids{
+                    self.update_db_person(person_id)?;
+                }
+                for rsc_path in rsc_paths{
+                    self.update_rsc(&rsc_path)?;
+                }
+            },
+            Err(e) => return Err(PyReferenceError::new_err(format!("database error create movie {:?} error:{}", movie, e))),
         };
-
-        let poster_path = match movie.poster_path {
-            Some(poster_path) => poster_path,
-            None => "".to_string(),
-        };
-
-        let backdrop_path = match movie.backdrop_path {
-            Some(backdrop_path) => backdrop_path,
-            None => "".to_string(),
-        };
-
-        if let Err(e) = self.conn.create_movie(movie.id, 
-            &movie.original_title, &movie.original_language, &movie.title, &movie.release_date,
-            &overview, movie.popularity, &poster_path, &backdrop_path){
-            return Err(PyReferenceError::new_err(format!("database error create movie{}", e)))
-        }
-
-        for genre in movie.genres{
-            if let Err(e) = self.conn.create_movie_genre(genre.id, &genre.name){
-                return Err(PyReferenceError::new_err(format!("database error create movie genre {}", e)))
-            }
-            if let Err(e) = self.conn.link_movie_genre(movie.id, genre.id){
-                return Err(PyReferenceError::new_err(format!("database error create movie genre {}", e)))
-            }
-        }
-
-        for cast in movie.credits.cast{
-            if let Err(e) = self.conn.create_movie_cast(movie.id, &cast.name, &cast.character, cast.order){
-                return Err(PyReferenceError::new_err(format!("database error create movie cast {}", e)))
-            }
-        }
-
-        self.update_rsc(&backdrop_path)?;
-        self.update_rsc(&poster_path)?;
 
         Ok(())
     }
 
-    fn update_db_tv(&self, tv_id: u64) -> PyResult<()>{
+    fn update_db_person(&mut self, person_id: u64) -> PyResult<()>{
+        match self.conn.tv_exist(person_id) {
+            Ok(false) => return Ok(()),
+            Err(e) => return Err(PyReferenceError::new_err(format!("database error person exist {}", e))),
+            _ => ()
+        };
+
+        let person = match  self.tmdb.person(person_id) {
+            Ok(person) => person,
+            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for PersonID {:?}", e, person_id))),
+        };
+
+        match self.conn.create_person(&person){
+            Ok((person_ids, rsc_paths)) => {
+                for person_id in person_ids{
+                    self.update_db_person(person_id)?;
+                }
+                for rsc_path in rsc_paths{
+                    self.update_rsc(&rsc_path)?;
+                }
+            },
+            Err(e) => return Err(PyReferenceError::new_err(format!("database error create person {:?} error:{}", person, e))),
+        };
+
+        Ok(())
+    }
+
+    fn update_db_tv(&mut self, tv_id: u64) -> PyResult<()>{
         match self.conn.tv_exist(tv_id) {
             Ok(false) => return Ok(()),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error tv exist {}", e))),
@@ -169,83 +169,51 @@ impl Library {
             Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for MovieID {:?}", e, tv_id))),
         };
 
-        let poster_path = match tv.poster_path {
-            Some(poster_path) => poster_path,
-            None => "".to_string(),
+    
+        match self.conn.create_tv(&tv){
+            Ok((person_ids, rsc_paths)) => {
+                for person_id in person_ids{
+                    self.update_db_person(person_id)?;
+                }
+                for rsc_path in rsc_paths{
+                    self.update_rsc(&rsc_path)?;
+                }
+            },
+            Err(e) => return Err(PyReferenceError::new_err(format!("database error create tv {:?} error:{}", tv, e))),
         };
-
-        let backdrop_path = match tv.backdrop_path {
-            Some(backdrop_path) => backdrop_path,
-            None => "".to_string(),
-        };
-
-        let overview = match tv.overview {
-            Some(overview) => overview,
-            None => "".to_string(),
-        };
-
-        if let Err(e) = self.conn.create_tv(tv.id, 
-            &tv.original_name, &tv.original_language, &tv.name, &tv.first_air_date,
-            &overview, tv.popularity, &poster_path, &backdrop_path){
-            return Err(PyReferenceError::new_err(format!("database error create movie{}", e)))
-        }
-
-        for genre in tv.genres{
-            if let Err(e) = self.conn.create_tv_genre(genre.id, &genre.name){
-                return Err(PyReferenceError::new_err(format!("database error create movie genre {}", e)))
-            }
-            if let Err(e) = self.conn.link_tv_genre(tv.id, genre.id){
-                return Err(PyReferenceError::new_err(format!("database error create movie genre {}", e)))
-            }
-        }
-
-        for season in tv.seasons {
-
-            let overview = match season.overview {
-                Some(overview) => overview,
-                None => "".to_string(),
-            };
-
-            let poster_path = match season.poster_path {
-                Some(poster_path) => poster_path,
-                None => "".to_string(),
-            };
-            
-            if let Err(e) = self.conn.create_season(tv.id, season.season_number, season.episode_count, 
-                &season.name, &overview, &poster_path){
-                return Err(PyReferenceError::new_err(format!("database error create tv season {}", e)))
-            }
-
-            self.update_rsc(&poster_path)?;
-        }
-
-        for cast in tv.credits.cast{
-            if let Err(e) = self.conn.create_tv_cast(tv.id, &cast.name, &cast.character, cast.order){
-                return Err(PyReferenceError::new_err(format!("database error create movie cast {}", e)))
-            }
-        }
-
-        self.update_rsc(&backdrop_path)?;
-        self.update_rsc(&poster_path)?;
 
         Ok(())
 
     }
 
-    fn update_db_episode(&self, tv_id: u64, season: u32, episode: u32) -> PyResult<u64>{
+    fn update_db_episode(&mut self, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<u64>{
         
         self.update_db_tv(tv_id)?;
 
-        match self.conn.episode_exist(tv_id, season, episode) {
+        match self.conn.episode_exist(tv_id, season_number, episode_number) {
             Ok(Some(episode_id)) => return Ok(episode_id),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error episode exist {}", e))),
             _ => ()
         };
 
-        Ok(match self.conn.create_episode(tv_id, season, episode){
-            Ok(episode_id) => episode_id,
+        let episode = match self.tmdb.tv_episode(tv_id, season_number, episode_number){
+            Ok(episode) => episode,
+            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for tv_id {:?} season {:?} episode {:?}", e, tv_id, season_number, episode_number))),
+        };
+
+        match self.conn.create_episode(tv_id, &episode){
+            Ok((person_ids, rsc_paths)) => {
+                for person_id in person_ids{
+                    self.update_db_person(person_id)?;
+                }
+                for rsc_path in rsc_paths{
+                    self.update_rsc(&rsc_path)?;
+                }
+            },
             Err(e) => return Err(PyReferenceError::new_err(format!("database error create episode {}", e))),
-        })
+        };
+
+        Ok(episode.id)
     }
 
     fn update_rsc(&self, rsc_path: &str) -> PyResult<()>{
