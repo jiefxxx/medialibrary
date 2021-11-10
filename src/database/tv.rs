@@ -112,7 +112,7 @@ impl SqlLibrary{
                     PersonID,
                     TvID,
                     Character,
-                    Order) values (?1, ?2, ?3, ?4)",
+                    Ord) values (?1, ?2, ?3, ?4)",
     
                 &[
                 &cast.cast_id.unwrap().to_string(),
@@ -173,7 +173,7 @@ impl SqlLibrary{
                     PersonID,
                     EpisodeID,
                     Character,
-                    Order) values (?1, ?2, ?3, ?4)",
+                    Ord) values (?1, ?2, ?3, ?4)",
     
                 &[
                 &cast.cast_id.unwrap().to_string(),

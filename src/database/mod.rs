@@ -25,10 +25,10 @@ impl SqlLibrary{
             "CREATE TABLE IF NOT EXISTS videos (
                 VideoID INTEGER PRIMARY KEY NOT NULL,
                 Path TEXT NOT NULL UNIQUE,
-                VideoMediaType INTEGER,
-                VideoMediaID INTEGER,
-                Duration FLOAT,
-                BitRate FLOAT,
+                MediaType INTEGER,
+                MediaID INTEGER,
+                Duration INTEGER,
+                BitRate INTEGER,
                 Codec TEXT,
                 Width INTEGER,
                 Height INTEGER,
@@ -94,7 +94,7 @@ impl SqlLibrary{
             "CREATE TABLE IF NOT EXISTS movie_genre_links (
                 MovieID INTEGER NOT NULL,
                 GenreID INTEGER NOT NULL,
-                UNIQUE(MovieID,GenreID))",
+                unique(MovieID,GenreID))",
             [],
         )?;
 
@@ -103,8 +103,8 @@ impl SqlLibrary{
                 MovieID INTEGER NOT NULL,
                 PersonID TEXT,
                 Character TEXT,
-                Order INTEGER,
-                UNIQUE(MovieID,PersonID,Character))",
+                Ord INTEGER,
+                unique(MovieID,PersonID,Character))",
             [],
         )?;
 
@@ -142,7 +142,7 @@ impl SqlLibrary{
             "CREATE TABLE IF NOT EXISTS tv_genre_links (
                 TvID INTEGER NOT NULL,
                 GenreID INTEGER NOT NULL,
-                UNIQUE(TvID,GenreID))",
+                unique(TvID,GenreID))",
             [],
         )?;
 
@@ -151,8 +151,8 @@ impl SqlLibrary{
                 TvID INTEGER NOT NULL,
                 PersonID TEXT,
                 Character TEXT,
-                Order INTEGER,
-                UNIQUE(TvID,PersonID,Character))",
+                Ord INTEGER,
+                unique(TvID,PersonID,Character))",
             [],
         )?;
 
@@ -189,8 +189,8 @@ impl SqlLibrary{
                 EpisodeID INTEGER NOT NULL,
                 PersonID INTEGER NOT NULL,
                 Character TEXT,
-                Order INTEGER,
-                UNIQUE(EpisodeID,PersonID,Character))",
+                Ord INTEGER,
+                unique(EpisodeID,PersonID,Character))",
             [],
         )?;
 

@@ -1,10 +1,10 @@
-use crate::rustmdb::Movie;
+use crate::rustmdb;
 
 use super::SqlLibrary;
 
 
 impl SqlLibrary{
-    pub fn create_movie(&mut self, movie: &Movie) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+    pub fn create_movie(&mut self, movie: &rustmdb::Movie) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
         let tx = self.conn.transaction()?;
 
         let mut person_ids = Vec::new();
@@ -84,7 +84,7 @@ impl SqlLibrary{
                     PersonID,
                     MovieID,
                     Character,
-                    Order) values (?1, ?2, ?3, ?4)",
+                    Ord) values (?1, ?2, ?3, ?4)",
     
                 &[
                 &cast.cast_id.unwrap().to_string(),

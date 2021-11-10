@@ -1,15 +1,18 @@
+use std::collections::HashMap;
+
+use rusqlite::{ToSql, types::Null};
+
 use super::SqlLibrary;
 
+use crate::library::video::{Video, VideoResult};
 
 impl SqlLibrary{
 
-    pub fn create_video(&self, path: &str, media_type: u8, duration: f32, 
-        bit_rate: f32, codec: &str, width: u32, height: u32, size: usize) -> Result<u64, rusqlite::Error>{
-
+    pub fn create_video(&self, video: Video) -> Result<u64, rusqlite::Error>{
         self.conn.execute(
             "INSERT INTO videos (
                 Path,
-                VideoMediaType,
+                MediaType,
                 Duration,
                 BitRate,
                 Codec,
@@ -17,37 +20,84 @@ impl SqlLibrary{
                 Height,
                 Size,
                 Adding) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'))",
-            &[path, 
-            &media_type.to_string(),
-            &duration.to_string(),
-            &bit_rate.to_string(),
-            &codec,
-            &width.to_string(),
-            &height.to_string(),
-            &size.to_string()],
+            &[&video.path, 
+            &video.media_type.to_string(),
+            &video.duration.to_string(),
+            &video.bit_rate.to_string(),
+            &video.codec,
+            &video.width.to_string(),
+            &video.height.to_string(),
+            &video.size.to_string()],
         )?;
 
-        Ok(self.conn.last_insert_rowid() as u64)
+        let video_id = self.conn.last_insert_rowid() as u64;
+        for language in video.subtitles{
+            self.conn.execute(
+                "INSERT INTO subtitles (
+                    SubtitleVideoID,
+                    SubtitleLanguage) values (?1, ?2)",
+                &[&video_id.to_string(), &language],
+            )?;
+        }
+
+        for language in video.audios{
+            self.conn.execute(
+                "INSERT INTO audios (
+                    AudioVideoID,
+                    AudioLanguage) values (?1, ?2)",
+                &[&video_id.to_string(), &language],
+            )?;
+        }
+
+        Ok(video_id)
     }
 
-    pub fn create_video_subtitle(&self, video_id: u64, language: &str) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
-            "INSERT INTO subtitles (
-                SubtitleVideoID,
-                SubtitleLanguage) values (?1, ?2)",
-            &[&video_id.to_string(), language],
-        )?;
-        Ok(())
-    }
+    pub fn get_videos(&self, parameters: HashMap<&str, Option<String>>) -> Result<Vec<VideoResult>, rusqlite::Error>{
+        let mut param: Vec<&dyn ToSql> = Vec::new();
+        let mut sql = String::new();
+        sql += "SELECT VideoID, Path, MediaType, MediaID, Adding FROM videos ";
+        if parameters.len() > 0{
+            sql += "WHERE ";
+            let mut counter = 1;
+            for (name, value) in &parameters{
+                    if counter > 1{
+                        sql += "AND "
+                    }
+                sql += name;
+                
+                if let Some(value) = value{
+                    println!("param {} ", &value);
+                    param.push(value);
+                    sql += " = ?";
+                    sql += &counter.to_string();
+                    sql += " ";
+                    counter += 1;
+                }
+                else{
+                    sql += " IS NULL ";
+                    println!("param NULL");
+                }
+                
+            }
+        }
+        println!("sql {} ", &sql);
+        let mut stmt = self.conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(param.as_slice(), |row| {
+            Ok(VideoResult{
+                id: row.get(0)?,
+                path: row.get(1)?,
+                media_type: row.get(2)?,
+                media_id: row.get(3)?,
+                adding: row.get(4)?,
+            })
+        })?;
 
-    pub fn create_video_audio(&self, video_id: u64, language: &str) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
-            "INSERT INTO audios (
-                AudioVideoID,
-                AudioLanguage) values (?1, ?2)",
-            &[&video_id.to_string(), language],
-        )?;
-        Ok(())
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
     }
 
     pub fn edit_video_media_id(&self, video_id: u64, media_id: u64) -> Result<(), rusqlite::Error>{
@@ -110,7 +160,6 @@ impl SqlLibrary{
         }
         Ok(None)
     }
-    
 
     pub fn get_video_unknown(&self) -> Result<Vec<(u64, u8, String)>, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
