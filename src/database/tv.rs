@@ -12,23 +12,23 @@ impl SqlLibrary{
         let mut rsc_path = Vec::new();
 
         tx.execute(
-            "INSERT INTO tvs (
-                TvID,
-                OriginalTitle,
-                OriginalLanguage,
-                Title,
-                ReleaseDate,
-                Overview,
-                Popularity,
-                PosterPath,
-                BackdropPath,
-                Status,
-                VoteAverage,
-                VoteCount,
-                InProduction, 
-                NumberOfEpisodes,
-                NumberOfSeasons,
-                EpisodeRunTime) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            "INSERT INTO Tvs (
+                id,
+                original_title,
+                original_language,
+                title,
+                release_date,
+                overview,
+                popularity,
+                poster_path,
+                backdrop_path,
+                status,
+                vote_average,
+                vote_count,
+                in_production, 
+                number_of_episodes,
+                number_of_seasons,
+                episode_run_time) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
 
             &[
             &tv.id.to_string(),
@@ -51,15 +51,15 @@ impl SqlLibrary{
 
         for season in &tv.seasons{
             tx.execute(
-                "INSERT INTO seasons (
-                    SeasonID,
-                    TvID,
-                    SeasonNumber,
-                    EpisodeCount,
-                    Title,
-                    Overview,
-                    PosterPath,
-                    ReleaseDate) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO Seasons (
+                    id,
+                    tv_id,
+                    season_number,
+                    episode_count,
+                    title,
+                    overview,
+                    poster_path,
+                    release_date) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     
                 &[
                 &season.id.to_string(),
@@ -82,9 +82,9 @@ impl SqlLibrary{
 
         for genre in &tv.genres{
             tx.execute(
-                "INSERT OR IGNORE INTO tv_genres (
-                    GenreID,
-                    GenreName) values (?1, ?2)",
+                "INSERT OR IGNORE INTO TvGenres (
+                    id,
+                    name) values (?1, ?2)",
     
                 &[
                 &genre.id.to_string(),
@@ -92,9 +92,9 @@ impl SqlLibrary{
             )?;
 
             tx.execute(
-                "INSERT INTO tv_genre_links (
-                    GenreID,
-                    TvID) values (?1, ?2)",
+                "INSERT INTO TvGenresLinks (
+                    genre_id,
+                    tv_id) values (?1, ?2)",
     
                 &[
                 &genre.id.to_string(),
@@ -108,11 +108,11 @@ impl SqlLibrary{
             }
     
             tx.execute(
-                "INSERT INTO tv_casts (
-                    PersonID,
-                    TvID,
-                    Character,
-                    Ord) values (?1, ?2, ?3, ?4)",
+                "INSERT INTO TvCasts (
+                    person_id,
+                    tv_id,
+                    character,
+                    ord) values (?1, ?2, ?3, ?4)",
     
                 &[
                 &cast.cast_id.unwrap().to_string(),
@@ -138,17 +138,17 @@ impl SqlLibrary{
         let rsc_path = Vec::new();
         
         tx.execute(
-            "INSERT INTO episodes (
-                EpisodeID,
-                SeasonID,
-                TvID,
-                SeasonNumber,
-                EpisodeNumber,
-                ReleaseDate,
-                Title,
-                Overview,
-                VoteAverage,
-                VoteCount) values (?1, ?2, ?3)",
+            "INSERT INTO Episodes (
+                id,
+                season_id,
+                tv_id,
+                season_number,
+                episode_number,
+                release_date,
+                title,
+                overview,
+                vote_average,
+                vote_count) values (?1, ?2, ?3)",
 
             &[
             &episode.id.to_string(),
@@ -169,11 +169,11 @@ impl SqlLibrary{
             }
     
             tx.execute(
-                "INSERT INTO episode_casts (
-                    PersonID,
-                    EpisodeID,
-                    Character,
-                    Ord) values (?1, ?2, ?3, ?4)",
+                "INSERT INTO EpisodeCasts (
+                    person_id,
+                    episode_id,
+                    character,
+                    ord) values (?1, ?2, ?3, ?4)",
     
                 &[
                 &cast.cast_id.unwrap().to_string(),
@@ -192,8 +192,8 @@ impl SqlLibrary{
 
     pub fn get_season_id(&self, tv_id: u64, season_number: u64) -> Result<Option<u64>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT SeasonID from seasons
-             WHERE tvID = ?1 and SeasonNumber = ?2",
+            "SELECT season_id from Seasons
+             WHERE tv_id = ?1 and season_number = ?2",
         )?;
     
         let rows = stmt.query_map(&[&tv_id.to_string(), &season_number.to_string()], |row| row.get(0))?;
@@ -205,8 +205,8 @@ impl SqlLibrary{
 
     pub fn tv_exist(&self, tv_id: u64) -> Result<bool, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
-            "SELECT Title from tvs
-             WHERE tvID = ?1",
+            "SELECT title from Tvs
+             WHERE id = ?1",
         )?;
     
         let rows = stmt.query_map(&[&tv_id.to_string()], |row| row.get(0))?;
@@ -219,8 +219,8 @@ impl SqlLibrary{
 
     pub fn episode_exist(&self, tv_id: u64, season: u64, episode: u64) -> Result<Option<u64>, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
-            "SELECT EpisodeID from episodes
-             WHERE TvID = ?1 AND SeasonNumber = ?2 AND EpisodeNumber = ?3",
+            "SELECT id from Episodes
+             WHERE tv_id = ?1 AND season_number = ?2 AND episode_number = ?3",
         )?;
     
         let rows = stmt.query_map(&[&tv_id.to_string(), 

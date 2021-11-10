@@ -13,17 +13,17 @@ impl SqlLibrary{
         let mut rsc_path = Vec::new();
 
         tx.execute(
-            "INSERT INTO persons (
-                PersonID,
-                Birthday,
-                KnownForDepartment,
-                Deathday,
-                Name,
-                Gender,
-                Biography,
-                Popularity,
-                PlaceOfBirth,
-                ProfilePath) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO Persons (
+                id,
+                birthday,
+                known_for_department,
+                deathday,
+                name,
+                gender,
+                biography,
+                popularity,
+                place_of_birth,
+                profile_path) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
 
             &[
             &person.id.to_string(),
@@ -49,8 +49,8 @@ impl SqlLibrary{
 
     pub fn person_exist(&self, person_id: u64) -> Result<bool, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
-            "SELECT Name from persons
-             WHERE PersonID = ?1",
+            "SELECT name from Persons
+             WHERE id = ?1",
         )?;
     
         let rows = stmt.query_map(&[&person_id.to_string()], |row| row.get(0))?;

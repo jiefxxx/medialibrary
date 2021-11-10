@@ -12,13 +12,15 @@ pub struct Video{
     #[pyo3(get)]
     pub media_type: u8,
     #[pyo3(get)]
+    pub media_id: Option<u64>,
+    #[pyo3(get)]
     pub bit_rate: u64,
     #[pyo3(get)]
     pub duration: u64,
     #[pyo3(get)]
     pub size: u64,
     #[pyo3(get)]
-    pub mtime: String,
+    pub adding: String,
     #[pyo3(get)]
     pub codec: String,
     #[pyo3(get)]
@@ -38,10 +40,11 @@ impl Video{
             id: 0,
             path,
             media_type,
+            media_id: None,
             bit_rate: 0,
             duration: 0,
             size: 0,
-            mtime: String::new(),
+            adding: String::new(),
             codec: String::new(),
             width: 0,
             height: 0,
@@ -63,7 +66,6 @@ impl Video{
                         video.bit_rate = track.getattr("overall_bit_rate")?.extract()?;
                         video.duration = track.getattr("duration")?.extract()?;
                         video.size = track.getattr("file_size")?.extract()?;
-                        video.mtime = track.getattr("file_last_modification_date")?.extract()?;
                     },
                     "Video" => {
                         video.codec = track.getattr("codec_id")?.extract()?;

@@ -22,192 +22,192 @@ impl SqlLibrary{
 
     pub fn init_db(&self) -> Result<(), rusqlite::Error>{
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS videos (
-                VideoID INTEGER PRIMARY KEY NOT NULL,
-                Path TEXT NOT NULL UNIQUE,
-                MediaType INTEGER,
-                MediaID INTEGER,
-                Duration INTEGER,
-                BitRate INTEGER,
-                Codec TEXT,
-                Width INTEGER,
-                Height INTEGER,
-                Size INTEGER,
-                Adding TEXT)",
+            "CREATE TABLE IF NOT EXISTS Videos (
+                id INTEGER PRIMARY KEY NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                media_type INTEGER,
+                media_id INTEGER,
+                duration INTEGER,
+                bit_rate INTEGER,
+                codec TEXT,
+                width INTEGER,
+                height INTEGER,
+                size INTEGER,
+                adding TEXT)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS lastTime (
-                LastTimeVideoID INTEGER NOT NULL,
-                LastTimeUserID INTEGER NOT NULL,
-                LastTimeValue INTEGER,
-                unique(LastTimeVideoID, LastTimeUserID))",
+            "CREATE TABLE IF NOT EXISTS LastTime (
+                video_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                last_time INTEGER,
+                unique(video_id, user_id))",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS audios (
-                AudioVideoID INTEGER NOT NULL,
-                AudioLanguage TEXT,
-                unique(AudioVideoID, AudioLanguage))",
+            "CREATE TABLE IF NOT EXISTS Audios (
+                video_id INTEGER NOT NULL,
+                language TEXT,
+                unique(video_id, language))",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS subtitles (
-                SubtitleVideoID INTEGER NOT NULL,
-                SubtitleLanguage TEXT,
-                unique(SubtitleVideoID, SubtitleLanguage))",
+            "CREATE TABLE IF NOT EXISTS Subtitles (
+                video_id INTEGER NOT NULL,
+                language TEXT,
+                unique(video_id, language))",
             [],
         )?;
 
         // Movie Part
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS movies (
-                MovieID INTEGER PRIMARY KEY NOT NULL,
-                OriginalTitle TEXT,
-                OriginalLanguage TEXT,
-                Title TEXT,
-                ReleaseDate TEXT,
-                Overview TEXT,
-                Popularity FLOAT,
-                PosterPath TEXT,
-                BackdropPath TEXT,
-                VoteAverage FLOAT,
-                VoteCount INTEGER,
-                Tagline TEXT,
-                Status TEXT,
-                Adult BOOL)",
+            "CREATE TABLE IF NOT EXISTS Movies (
+                id INTEGER PRIMARY KEY NOT NULL,
+                original_title TEXT,
+                original_language TEXT,
+                title TEXT,
+                release_date TEXT,
+                overview TEXT,
+                popularity FLOAT,
+                poster_path TEXT,
+                backdrop_path TEXT,
+                vote_average FLOAT,
+                vote_count INTEGER,
+                tagline TEXT,
+                status TEXT,
+                adult BOOL)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS movie_genres (
-                GenreID INTEGER PRIMARY KEY NOT NULL,
-                GenreName TEXT)",
+            "CREATE TABLE IF NOT EXISTS MovieGenres (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS movie_genre_links (
-                MovieID INTEGER NOT NULL,
-                GenreID INTEGER NOT NULL,
-                unique(MovieID,GenreID))",
+            "CREATE TABLE IF NOT EXISTS MovieGenreLinks (
+                movie_id INTEGER NOT NULL,
+                genre_id INTEGER NOT NULL,
+                unique(movie_id,genre_id))",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS movie_casts (
-                MovieID INTEGER NOT NULL,
-                PersonID TEXT,
-                Character TEXT,
-                Ord INTEGER,
-                unique(MovieID,PersonID,Character))",
+            "CREATE TABLE IF NOT EXISTS MovieCasts (
+                movie_id INTEGER NOT NULL,
+                person_id TEXT,
+                character TEXT,
+                ord INTEGER,
+                unique(movie_id,person_id,character))",
             [],
         )?;
 
         // Tv Part
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS tvs (
-                TvID INTEGER PRIMARY KEY NOT NULL,
-                OriginalTitle TEXT,
-                OriginalLanguage TEXT,
-                Title TEXT,
-                ReleaseDate TEXT,
-                Overview TEXT,
-                Popularity FLOAT,
-                PosterPath TEXT,
-                BackdropPath TEXT,
-                Status TEXT,
-                VoteAverage FLOAT,
-                VoteCount INTEGER,
-                InProduction BOOL, 
-                NumberOfEpisodes INTEGER,
-                NumberOfSeasons INTEGER,
-                EpisodeRunTime INTEGER)",
+            "CREATE TABLE IF NOT EXISTS Tvs (
+                id INTEGER PRIMARY KEY NOT NULL,
+                original_title TEXT,
+                original_language TEXT,
+                title TEXT,
+                release_date TEXT,
+                overview TEXT,
+                popularity FLOAT,
+                poster_path TEXT,
+                backdrop_path TEXT,
+                status TEXT,
+                vote_average FLOAT,
+                vote_count INTEGER,
+                in_production BOOL, 
+                number_of_episodes INTEGER,
+                number_of_eeasons INTEGER,
+                episode_run_time INTEGER)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS tv_genres (
-                GenreID INTEGER PRIMARY KEY NOT NULL,
-                GenreName TEXT)",
+            "CREATE TABLE IF NOT EXISTS TvGenres (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS tv_genre_links (
-                TvID INTEGER NOT NULL,
-                GenreID INTEGER NOT NULL,
-                unique(TvID,GenreID))",
+            "CREATE TABLE IF NOT EXISTS TvGenrelinks (
+                tv_id INTEGER NOT NULL,
+                genre_id INTEGER NOT NULL,
+                unique(tv_id,genre_id))",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS tv_casts (
-                TvID INTEGER NOT NULL,
-                PersonID TEXT,
-                Character TEXT,
-                Ord INTEGER,
-                unique(TvID,PersonID,Character))",
+            "CREATE TABLE IF NOT EXISTS TvCasts (
+                tv_id INTEGER NOT NULL,
+                person_id TEXT,
+                character TEXT,
+                ord INTEGER,
+                unique(tv_id, person_id, character))",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS seasons (
-                SeasonID INTEGER PRIMARY KEY NOT NULL,
-                TvID INTEGER NOT NULL,
-                SeasonNumber INTEGER NOT NULL,
-                EpisodeCount INTEGER,
-                Title TEXT,
-                Overview TEXT,
-                PosterPath TEXT,
-                ReleaseDate TEXT)",
+            "CREATE TABLE IF NOT EXISTS Seasons (
+                id INTEGER PRIMARY KEY NOT NULL,
+                tv_id INTEGER NOT NULL,
+                season_number INTEGER NOT NULL,
+                episode_count INTEGER,
+                title TEXT,
+                overview TEXT,
+                poster_path TEXT,
+                release_date TEXT)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS episodes (
-                EpisodeID INTEGER PRIMARY KEY NOT NULL,
-                SeasonID INTEGER NOT NULL,
-                TvID INTEGER NOT NULL,
-                SeasonNumber INTEGER NOT NULL,
-                EpisodeNumber INTEGER NOT NULL,
-                ReleaseDate TEXT,
-                Title TEXT,
-                Overview TEXT,
-                VoteAverage FLOAT,
-                VoteCount INTEGER)",
+            "CREATE TABLE IF NOT EXISTS Episodes (
+                id INTEGER PRIMARY KEY NOT NULL,
+                season_id INTEGER NOT NULL,
+                tv_id INTEGER NOT NULL,
+                season_number INTEGER NOT NULL,
+                episode_number INTEGER NOT NULL,
+                release_date TEXT,
+                title TEXT,
+                overview TEXT,
+                vote_average FLOAT,
+                vote_count INTEGER)",
             [],
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS episode_casts (
-                EpisodeID INTEGER NOT NULL,
-                PersonID INTEGER NOT NULL,
-                Character TEXT,
-                Ord INTEGER,
-                unique(EpisodeID,PersonID,Character))",
+            "CREATE TABLE IF NOT EXISTS EpisodeCasts (
+                episode_id INTEGER NOT NULL,
+                person_id INTEGER NOT NULL,
+                character TEXT,
+                ord INTEGER,
+                unique(episode_id,person_id,character))",
             [],
         )?;
 
 
         //Person Part
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS persons (
-                PersonID INTEGER PRIMARY KEY NOT NULL,
-                Birthday TEXT,
-                KnownForDepartment TEXT,
-                Deathday TEXT,
-                Name TEXT,
-                Gender INTEGER,
-                Biography TEXT,
-                Popularity FLOAT,
-                PlaceOfBirth TEXT,
-                ProfilePath TEXT)",
+            "CREATE TABLE IF NOT EXISTS Persons (
+                id INTEGER PRIMARY KEY NOT NULL,
+                birthday TEXT,
+                known_for_department TEXT,
+                deathday TEXT,
+                name TEXT,
+                gender INTEGER,
+                biography TEXT,
+                popularity FLOAT,
+                place_of_Birth TEXT,
+                profile_path TEXT)",
             []
         )?;
 

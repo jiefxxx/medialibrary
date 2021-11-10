@@ -11,21 +11,21 @@ impl SqlLibrary{
         let mut rsc_path = Vec::new();
 
         tx.execute(
-            "INSERT INTO movies (
-                MovieID,
-                OriginalTitle,
-                OriginalLanguage,
-                Title,
-                ReleaseDate,
-                Overview,
-                Popularity,
-                PosterPath,
-                BackdropPath,
-                VoteAverage,
-                VoteCount,
-                Tagline,
-                Status,
-                Adult) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            "INSERT INTO Movies (
+                id,
+                original_title,
+                original_language,
+                title,
+                release_date,
+                overview,
+                popularity,
+                poster_path,
+                backdrop_path,
+                vote_average,
+                vote_count,
+                tagline,
+                status,
+                adult) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
 
             &[
                 &movie.id.to_string(),
@@ -54,9 +54,9 @@ impl SqlLibrary{
 
         for genre in &movie.genres{
             tx.execute(
-                "INSERT OR IGNORE INTO movie_genres (
-                    GenreID,
-                    GenreName) values (?1, ?2)",
+                "INSERT OR IGNORE INTO MovieGenres (
+                    id,
+                    name) values (?1, ?2)",
     
                 &[
                 &genre.id.to_string(),
@@ -64,9 +64,9 @@ impl SqlLibrary{
             )?;
 
             tx.execute(
-                "INSERT INTO movie_genre_links (
-                    GenreID,
-                    MovieID) values (?1, ?2)",
+                "INSERT INTO MovieGenreLinks (
+                    genre_id,
+                    movie_id) values (?1, ?2)",
     
                 &[
                 &genre.id.to_string(),
@@ -80,11 +80,11 @@ impl SqlLibrary{
             }
     
             tx.execute(
-                "INSERT INTO movie_casts (
-                    PersonID,
-                    MovieID,
-                    Character,
-                    Ord) values (?1, ?2, ?3, ?4)",
+                "INSERT INTO MovieCasts (
+                    person_id,
+                    movie_id,
+                    character,
+                    ord) values (?1, ?2, ?3, ?4)",
     
                 &[
                 &cast.cast_id.unwrap().to_string(),
@@ -103,8 +103,8 @@ impl SqlLibrary{
 
     pub fn movie_exist(&self, movie_id: u64) -> Result<bool, rusqlite::Error>{
         let mut stmt = self.conn.prepare(
-            "SELECT OriginalTitle from movies
-             WHERE MediaID = ?1",
+            "SELECT original_title from Movies
+             WHERE id = ?1",
         )?;
     
         let rows = stmt.query_map(&[&movie_id.to_string()], |row| row.get(0))?;
