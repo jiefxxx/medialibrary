@@ -44,9 +44,8 @@ impl Library {
     }
 
     #[args(kwargs = "**")]
-    pub fn get_video(&self, kwargs: Option<&PyDict>) -> PyResult<Vec<VideoResult>>{
+    pub fn get_videos(&self, kwargs: Option<&PyDict>) -> PyResult<Vec<VideoResult>>{
         let mut map = HashMap::new();
-        println!("{:?}", &kwargs);
         if let Some(kwargs) = kwargs{
             for key in kwargs.keys(){
                 let item = kwargs.get_item(key).unwrap();
@@ -70,6 +69,9 @@ impl Library {
                         return Err(PyReferenceError::new_err(format!("args must be (string,[int, float or string])")));
                     }   
                 }
+                else if item.is_instance::<PyUnicode>()?{
+                    value = Some(("=".to_string(), item.extract()?));
+                }
                 else if item.is_instance::<PyFloat>()?{
                     value = Some(("=".to_string(), item.extract::<f64>()?.to_string()));
                 }
@@ -77,9 +79,8 @@ impl Library {
                     value = Some(("=".to_string(), item.extract::<i64>()?.to_string()));
                 }
                 else{
-                    return Err(PyReferenceError::new_err(format!("args must be (string,[int, float, string]) or int, float, string")));
+                    return Err(PyReferenceError::new_err(format!("args must be (string,[int, float, string]), int, float, string or None")));
                 }
-                println!("{:?}", item.get_type());
                 map.insert(key.extract()?, value);
             }
         }
