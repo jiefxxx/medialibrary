@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::database::SqlLibrary;
 use crate::rustmdb::Tmdb;
 
-use pyo3::types::{PyFloat, PyLong, PyUnicode};
+use pyo3::types::{PyFloat, PyLong, PyTuple, PyUnicode};
 use pyo3::{prelude::*, types::PyDict};
 use pyo3::exceptions::PyReferenceError;
 
@@ -54,19 +54,30 @@ impl Library {
                 if item.is_none(){
                     value = None;
                 }
-                else if item.is_instance::<PyLong>()?{
-                    let integer: i64 = item.extract()?;
-                    value = Some(integer.to_string());
+                else if item.is_instance::<PyTuple>()?{
+                    let tuple: &PyTuple = item.extract()?;
+                    let data = tuple.get_item(1)?;
+                    if data.is_instance::<PyUnicode>()?{
+                        value = Some((tuple.get_item(0)?.extract()?, data.extract()?));
+                    }
+                    else if data.is_instance::<PyFloat>()?{
+                        value = Some((tuple.get_item(0)?.extract()?, data.extract::<f64>()?.to_string()));
+                    }
+                    else if data.is_instance::<PyLong>()?{
+                        value = Some((tuple.get_item(0)?.extract()?, data.extract::<i64>()?.to_string()));
+                    }
+                    else{
+                        return Err(PyReferenceError::new_err(format!("args must be (string,[int, float or string])")));
+                    }   
                 }
                 else if item.is_instance::<PyFloat>()?{
-                    let integer: f64 = item.extract()?;
-                    value = Some(integer.to_string());
+                    value = Some(("=".to_string(), item.extract::<f64>()?.to_string()));
                 }
-                else if item.is_instance::<PyUnicode>()?{
-                    value = Some(item.extract()?);
+                else if item.is_instance::<PyLong>()?{
+                    value = Some(("=".to_string(), item.extract::<i64>()?.to_string()));
                 }
                 else{
-                    return Err(PyReferenceError::new_err(format!("args must be integer, float, or string")))
+                    return Err(PyReferenceError::new_err(format!("args must be (string,[int, float, string]) or int, float, string")));
                 }
                 println!("{:?}", item.get_type());
                 map.insert(key.extract()?, value);

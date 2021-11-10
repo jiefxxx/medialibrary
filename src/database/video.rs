@@ -52,7 +52,7 @@ impl SqlLibrary{
         Ok(video_id)
     }
 
-    pub fn get_videos(&self, parameters: HashMap<&str, Option<String>>) -> Result<Vec<VideoResult>, rusqlite::Error>{
+    pub fn get_videos(&self, parameters: HashMap<&str, Option<(String, String)>>) -> Result<Vec<VideoResult>, rusqlite::Error>{
         let mut param: Vec<&dyn ToSql> = Vec::new();
         let mut sql = String::new();
         sql += "SELECT id, path, media_type, media_id, adding FROM Videos ";
@@ -60,21 +60,18 @@ impl SqlLibrary{
             sql += "WHERE ";
             let mut counter = 1;
             for (name, value) in &parameters{
-                    if counter > 1{
-                        sql += "AND "
-                    }
-                sql += name;
+                if counter > 1{
+                    sql += "AND "
+                }
                 
-                if let Some(value) = value{
+                if let Some((operator, value)) = value{
                     println!("param {} ", &value);
                     param.push(value);
-                    sql += " = ?";
-                    sql += &counter.to_string();
-                    sql += " ";
+                    sql += &format!("{} {} ?{} ", name, operator, &counter);
                     counter += 1;
                 }
                 else{
-                    sql += " IS NULL ";
+                    sql += &format!("{} IS NULL ", name);
                     println!("param NULL");
                 }
                 
