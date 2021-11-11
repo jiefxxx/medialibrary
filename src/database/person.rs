@@ -28,7 +28,7 @@ impl SqlLibrary{
             &[
             &person.id.to_string(),
             &person.birthday.as_ref().unwrap_or(&"".to_string()),
-            &person.known_for_department,
+            &person.known_for_department.as_ref().unwrap_or(&"".to_string()),
             &person.deathday.as_ref().unwrap_or(&"".to_string()),
             &person.name,
             &person.gender.to_string(),

@@ -39,26 +39,26 @@ impl Library {
 
     pub fn update_db_person(&mut self, person_id: u64) -> PyResult<()>{
         match self.conn.person_exist(person_id) {
-            Ok(false) => return Ok(()),
+            Ok(true) => return Ok(()),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error person exist {}", e))),
             _ => ()
         };
 
-        let person = match  self.tmdb.person(person_id) {
-            Ok(person) => person,
-            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for PersonID {:?}", e, person_id))),
-        };
-
-        match self.conn.create_person(&person){
-            Ok((person_ids, rsc_paths)) => {
-                for person_id in person_ids{
-                    self.update_db_person(person_id)?;
-                }
-                for rsc_path in rsc_paths{
-                    self.update_rsc(&rsc_path)?;
-                }
+        match self.tmdb.person(person_id) {
+            Ok(person) => {
+                match self.conn.create_person(&person){
+                    Ok((person_ids, rsc_paths)) => {
+                        for person_id in person_ids{
+                            self.update_db_person(person_id)?;
+                        }
+                        for rsc_path in rsc_paths{
+                            self.update_rsc(&rsc_path)?;
+                        }
+                    },
+                    Err(e) => return Err(PyReferenceError::new_err(format!("database error create person {:?} error:{}", person, e))),
+                };
             },
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error create person {:?} error:{}", person, e))),
+            Err(e) => println!("tmdb error {} for PersonID {:?}", e, person_id),
         };
 
         Ok(())
@@ -66,7 +66,7 @@ impl Library {
 
     pub fn update_db_tv(&mut self, tv_id: u64) -> PyResult<()>{
         match self.conn.tv_exist(tv_id) {
-            Ok(false) => return Ok(()),
+            Ok(true) => return Ok(()),
             Err(e) => return Err(PyReferenceError::new_err(format!("database error tv exist {}", e))),
             _ => ()
         };

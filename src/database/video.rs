@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use rusqlite::{ToSql, types::Null};
+use rusqlite::ToSql;
 
 use super::SqlLibrary;
 
-use crate::library::video::{Video, VideoResult};
+use crate::library::video::{MediaInfo, Video, VideoResult};
 
 impl SqlLibrary{
 
@@ -55,7 +55,7 @@ impl SqlLibrary{
     pub fn get_videos(&self, parameters: HashMap<&str, Option<(String, String)>>) -> Result<Vec<VideoResult>, rusqlite::Error>{
         let mut param: Vec<&dyn ToSql> = Vec::new();
         let mut sql = String::new();
-        sql += "SELECT id, path, media_type, media_id, adding FROM Videos ";
+        sql += "SELECT id, path, media_type, media_id, adding, m_title, t_title, release_date, episode_number, season_number FROM VideosView ";
         if parameters.len() > 0{
             sql += "WHERE ";
             let mut counter = 1;
@@ -81,12 +81,29 @@ impl SqlLibrary{
         let mut stmt = self.conn.prepare(&sql)?;
     
         let rows = stmt.query_map(param.as_slice(), |row| {
+            let media_id: Option<u64> = row.get(3)?;
+            let info = match media_id{
+                None => MediaInfo::Unknown,
+                Some(_) => match row.get(2)?{
+                    0 => MediaInfo::Movie{
+                        title: row.get(5)?,
+                        release_date: row.get(7)?,
+                    },
+                    1 => MediaInfo::Tv{
+                        title: row.get(6)?,
+                        season_number: row.get(8)?,
+                        episode_number: row.get(9)?,
+                    },
+                    _ => MediaInfo::Unknown,
+                }
+            };
             Ok(VideoResult{
                 id: row.get(0)?,
                 path: row.get(1)?,
                 media_type: row.get(2)?,
-                media_id: row.get(3)?,
+                media_id,
                 adding: row.get(4)?,
+                info,
             })
         })?;
 

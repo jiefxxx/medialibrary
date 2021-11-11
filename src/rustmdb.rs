@@ -4,7 +4,7 @@ extern crate serde;
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Person {
     pub birthday: Option<String>,
-    pub known_for_department: String,
+    pub known_for_department: Option<String>,
     pub deathday: Option<String>,
     pub id: u64,
     pub name: String,

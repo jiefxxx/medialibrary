@@ -10,7 +10,7 @@ impl SqlLibrary{
 
         let mut person_ids = Vec::new();
         let mut rsc_path = Vec::new();
-
+        println!("adding tv {:?}", tv);
         tx.execute(
             "INSERT INTO Tvs (
                 id,
@@ -50,6 +50,7 @@ impl SqlLibrary{
         )?;
 
         for season in &tv.seasons{
+            println!("season {}", season.season_number);
             tx.execute(
                 "INSERT INTO Seasons (
                     id,
@@ -68,7 +69,8 @@ impl SqlLibrary{
                 &season.episode_count.to_string(),
                 &season.name,
                 &season.overview.as_ref().unwrap_or(&"".to_string()),
-                &season.poster_path.as_ref().unwrap_or(&"".to_string())],
+                &season.poster_path.as_ref().unwrap_or(&"".to_string()),
+                &tv.first_air_date,],
             )?;
         }
 
@@ -92,7 +94,7 @@ impl SqlLibrary{
             )?;
 
             tx.execute(
-                "INSERT INTO TvGenresLinks (
+                "INSERT INTO TvGenreLinks (
                     genre_id,
                     tv_id) values (?1, ?2)",
     
@@ -148,7 +150,7 @@ impl SqlLibrary{
                 title,
                 overview,
                 vote_average,
-                vote_count) values (?1, ?2, ?3)",
+                vote_count) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
 
             &[
             &episode.id.to_string(),
@@ -191,8 +193,9 @@ impl SqlLibrary{
     }
 
     pub fn get_season_id(&self, tv_id: u64, season_number: u64) -> Result<Option<u64>, rusqlite::Error> {
+        println!("get season id {} {}", &tv_id, &season_number);
         let mut stmt = self.conn.prepare(
-            "SELECT season_id from Seasons
+            "SELECT id from Seasons
              WHERE tv_id = ?1 and season_number = ?2",
         )?;
     

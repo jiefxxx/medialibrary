@@ -18,6 +18,54 @@ fn string_to_static_str(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
+fn create_sql_param(kwargs: Option<&PyDict>) -> PyResult<HashMap<&str, Option<(String, String)>>>{
+    let mut map = HashMap::new();
+    let kwargs = match kwargs {
+        Some(kwargs) => kwargs,
+        None => return Ok(map),
+    };
+    
+    for key in kwargs.keys(){
+        let item = kwargs.get_item(key).unwrap();
+        let value;
+        if item.is_none(){
+            value = None;
+        }
+        else if item.is_instance::<PyTuple>()?{
+            let tuple: &PyTuple = item.extract()?;
+            let data = tuple.get_item(1)?;
+            if data.is_instance::<PyUnicode>()?{
+                value = Some((tuple.get_item(0)?.extract()?, data.extract()?));
+            }
+            else if data.is_instance::<PyFloat>()?{
+                value = Some((tuple.get_item(0)?.extract()?, data.extract::<f64>()?.to_string()));
+            }
+            else if data.is_instance::<PyLong>()?{
+                value = Some((tuple.get_item(0)?.extract()?, data.extract::<i64>()?.to_string()));
+            }
+            else{
+                return Err(PyReferenceError::new_err(format!("args must be (string,[int, float or string])")));
+            }   
+        }
+        else if item.is_instance::<PyUnicode>()?{
+            value = Some(("=".to_string(), item.extract()?));
+        }
+        else if item.is_instance::<PyFloat>()?{
+            value = Some(("=".to_string(), item.extract::<f64>()?.to_string()));
+        }
+        else if item.is_instance::<PyLong>()?{
+            value = Some(("=".to_string(), item.extract::<i64>()?.to_string()));
+        }
+        else{
+            return Err(PyReferenceError::new_err(format!("args must be (string,[int, float, string]), int, float, string or None")));
+        }
+        map.insert(key.extract()?, value);
+    }
+
+    Ok(map)
+    
+}
+
 #[pyclass]
 pub struct Library{
     conn: SqlLibrary,
@@ -45,46 +93,7 @@ impl Library {
 
     #[args(kwargs = "**")]
     pub fn get_videos(&self, kwargs: Option<&PyDict>) -> PyResult<Vec<VideoResult>>{
-        let mut map = HashMap::new();
-        if let Some(kwargs) = kwargs{
-            for key in kwargs.keys(){
-                let item = kwargs.get_item(key).unwrap();
-                let value;
-                if item.is_none(){
-                    value = None;
-                }
-                else if item.is_instance::<PyTuple>()?{
-                    let tuple: &PyTuple = item.extract()?;
-                    let data = tuple.get_item(1)?;
-                    if data.is_instance::<PyUnicode>()?{
-                        value = Some((tuple.get_item(0)?.extract()?, data.extract()?));
-                    }
-                    else if data.is_instance::<PyFloat>()?{
-                        value = Some((tuple.get_item(0)?.extract()?, data.extract::<f64>()?.to_string()));
-                    }
-                    else if data.is_instance::<PyLong>()?{
-                        value = Some((tuple.get_item(0)?.extract()?, data.extract::<i64>()?.to_string()));
-                    }
-                    else{
-                        return Err(PyReferenceError::new_err(format!("args must be (string,[int, float or string])")));
-                    }   
-                }
-                else if item.is_instance::<PyUnicode>()?{
-                    value = Some(("=".to_string(), item.extract()?));
-                }
-                else if item.is_instance::<PyFloat>()?{
-                    value = Some(("=".to_string(), item.extract::<f64>()?.to_string()));
-                }
-                else if item.is_instance::<PyLong>()?{
-                    value = Some(("=".to_string(), item.extract::<i64>()?.to_string()));
-                }
-                else{
-                    return Err(PyReferenceError::new_err(format!("args must be (string,[int, float, string]), int, float, string or None")));
-                }
-                map.insert(key.extract()?, value);
-            }
-        }
-        match self.conn.get_videos(map){
+        match self.conn.get_videos(create_sql_param(kwargs)?){
             Ok(video) => Ok(video),
             Err(e) => Err(PyReferenceError::new_err(format!("database error get video media type {}", e))),
         }

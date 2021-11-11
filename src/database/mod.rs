@@ -62,6 +62,39 @@ impl SqlLibrary{
             [],
         )?;
 
+        self.conn.execute(
+            "CREATE VIEW VideosView
+                AS 
+                SELECT
+                    Videos.id as id,
+                    path,
+                    media_type,
+                    media_id,
+                    duration,
+                    bit_rate,
+                    codec,
+                    width,
+                    height,
+                    Movies.title as m_title,
+                    Tvs.title as t_title,
+                    episode_number,
+                    season_number,
+                    Movies.release_date as release_date,
+                    size,
+                    adding,
+                    GROUP_CONCAT(Subtitles.language) as subtitles,
+                    GROUP_CONCAT(Audios.language) as audios
+                FROM
+                    Videos
+                LEFT OUTER JOIN Audios ON Videos.id = Audios.video_id
+                LEFT OUTER JOIN Subtitles ON Videos.id = Subtitles.video_id
+                LEFT OUTER JOIN Movies ON Videos.media_type = 0 AND Videos.media_id = Movies.id
+                LEFT OUTER JOIN Episodes ON Videos.media_type = 1 AND Videos.media_id = Episodes.id
+                LEFT OUTER JOIN Tvs ON Episodes.tv_id = Tvs.id
+                GROUP BY videos.id",
+                []
+        )?;
+
         // Movie Part
 
         self.conn.execute(
@@ -126,7 +159,7 @@ impl SqlLibrary{
                 vote_count INTEGER,
                 in_production BOOL, 
                 number_of_episodes INTEGER,
-                number_of_eeasons INTEGER,
+                number_of_seasons INTEGER,
                 episode_run_time INTEGER)",
             [],
         )?;
@@ -139,7 +172,7 @@ impl SqlLibrary{
         )?;
 
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS TvGenrelinks (
+            "CREATE TABLE IF NOT EXISTS TvGenreLinks (
                 tv_id INTEGER NOT NULL,
                 genre_id INTEGER NOT NULL,
                 unique(tv_id,genre_id))",
@@ -213,4 +246,11 @@ impl SqlLibrary{
 
         Ok(())
     }
+}
+
+pub fn parse_concat( row: Option<String>) -> Option<Vec<String>>{
+    if let Some(row)= row{
+        return Some(row.split(",").map(|s| s.to_string()).collect())
+    }
+    None
 }
