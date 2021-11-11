@@ -107,6 +107,21 @@ impl PyObjectProtocol for Video {
 }
 
 
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+pub enum MediaInfo{
+    Tv{
+        title: String,
+        season_number: u64,
+        episode_number: u64
+    },
+    Movie{
+        title: String,
+        release_date: String,
+    },
+    Unknown,
+}
+
 #[pyclass]
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct VideoResult{
@@ -117,9 +132,10 @@ pub struct VideoResult{
     #[pyo3(get)]
     pub media_type: u8,
     #[pyo3(get)]
-    pub media_id: Option<u8>,
+    pub media_id: Option<u64>,
     #[pyo3(get)]
     pub adding: String,
+    pub info: MediaInfo,
 }
 
 
