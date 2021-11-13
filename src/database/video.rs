@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use rusqlite::ToSql;
 
-use super::SqlLibrary;
+use super::{SqlLibrary, parse_concat};
 
-use crate::library::video::{MediaInfo, Video, VideoResult};
+use crate::library::video::{MediaInfo, Video, VideoResult, EpisodeMinimal, MovieMinimal};
 
 impl SqlLibrary{
 
@@ -33,7 +33,7 @@ impl SqlLibrary{
         let video_id = self.conn.last_insert_rowid() as u64;
         for language in video.subtitles{
             self.conn.execute(
-                "INSERT INTO Subtitles (
+                "INSERT OR IGNORE INTO Subtitles (
                     video_id,
                     language) values (?1, ?2)",
                 &[&video_id.to_string(), &language],
@@ -42,7 +42,7 @@ impl SqlLibrary{
 
         for language in video.audios{
             self.conn.execute(
-                "INSERT INTO Audios (
+                "INSERT OR IGNORE INTO Audios (
                     video_id,
                     language) values (?1, ?2)",
                 &[&video_id.to_string(), &language],
@@ -50,6 +50,72 @@ impl SqlLibrary{
         }
 
         Ok(video_id)
+    }
+
+    pub fn get_video(&self,video_id: u64) -> Result<Option<Video>, rusqlite::Error>{
+        let sql = "SELECT
+                            id,
+                            path,
+                            media_type,
+                            media_id,
+                            duration,
+                            bit_rate,
+                            codec,
+                            width ,
+                            height,
+                            size,
+                            adding,
+                            subtitles,
+                            audios, 
+                            m_title, 
+                            t_title, 
+                            release_date, 
+                            episode_number, 
+                            season_number FROM VideosView
+                        WHERE id = ?1";
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(&[&video_id.to_string()], |row| {
+            let media_id: Option<u64> = row.get(4)?;
+            let info = match media_id{
+                None => MediaInfo::Unknown,
+                Some(media_id) => match row.get(3)?{
+                    0 => MediaInfo::Movie(MovieMinimal{
+                        id: media_id,
+                        title: row.get(14)?,
+                        release_date: row.get(16)?,
+                    }),
+                    1 => MediaInfo::Tv(EpisodeMinimal{
+                        id: media_id,
+                        title: row.get(15)?,
+                        season_number: row.get(17)?,
+                        episode_number: row.get(18)?,
+                    }),
+                    _ => MediaInfo::Unknown,
+                }
+            };
+            Ok(Video{
+                id: row.get(1)?,
+                path:row.get(2)?,
+                media_type: row.get(3)?,
+                media_id,
+                bit_rate: row.get(6)?,
+                duration: row.get(5)?,
+                size: row.get(10)?,
+                adding: row.get(11)?,
+                codec: row.get(7)?,
+                width: row.get(8)?,
+                height: row.get(9)?,
+                subtitles: parse_concat(row.get(12)?).unwrap_or_default(),
+                audios: parse_concat(row.get(13)?).unwrap_or_default(),
+                info,
+            })
+        })?;
+
+        for row in rows{
+            return Ok(Some(row?));
+        }
+
+        Ok(None)
     }
 
     pub fn get_videos(&self, parameters: HashMap<&str, Option<(String, String)>>) -> Result<Vec<VideoResult>, rusqlite::Error>{
@@ -84,16 +150,18 @@ impl SqlLibrary{
             let media_id: Option<u64> = row.get(3)?;
             let info = match media_id{
                 None => MediaInfo::Unknown,
-                Some(_) => match row.get(2)?{
-                    0 => MediaInfo::Movie{
+                Some(media_id) => match row.get(2)?{
+                    0 => MediaInfo::Movie(MovieMinimal{
+                        id: media_id,
                         title: row.get(5)?,
                         release_date: row.get(7)?,
-                    },
-                    1 => MediaInfo::Tv{
+                    }),
+                    1 => MediaInfo::Tv(EpisodeMinimal{
+                        id: media_id,
                         title: row.get(6)?,
                         season_number: row.get(8)?,
                         episode_number: row.get(9)?,
-                    },
+                    }),
                     _ => MediaInfo::Unknown,
                 }
             };
@@ -101,7 +169,6 @@ impl SqlLibrary{
                 id: row.get(0)?,
                 path: row.get(1)?,
                 media_type: row.get(2)?,
-                media_id,
                 adding: row.get(4)?,
                 info,
             })

@@ -95,7 +95,14 @@ impl Library {
     pub fn get_videos(&self, kwargs: Option<&PyDict>) -> PyResult<Vec<VideoResult>>{
         match self.conn.get_videos(create_sql_param(kwargs)?){
             Ok(video) => Ok(video),
-            Err(e) => Err(PyReferenceError::new_err(format!("database error get video media type {}", e))),
+            Err(e) => Err(PyReferenceError::new_err(format!("database error get videos {}", e))),
+        }
+    }
+    
+    pub fn get_video(&self, video_id: u64) -> PyResult<Option<Video>>{
+        match self.conn.get_video(video_id){
+            Ok(video) => Ok(video),
+            Err(e) => Err(PyReferenceError::new_err(format!("database error get video video_id: {} => {}", video_id, e))),
         }
     }
 

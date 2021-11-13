@@ -30,7 +30,8 @@ pub struct Video{
     #[pyo3(get)]
     pub subtitles: Vec<String>,
     #[pyo3(get)]
-    pub audios: Vec<String>
+    pub audios: Vec<String>,
+    pub info: MediaInfo,
 }
 
 
@@ -50,6 +51,7 @@ impl Video{
             height: 0,
             subtitles: Vec::new(),
             audios: Vec::new(),
+            info: MediaInfo::Unknown,
         }
     }
 
@@ -106,19 +108,35 @@ impl PyObjectProtocol for Video {
     }
 }
 
+#[pyclass]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct MovieMinimal{
+    #[pyo3(get)]
+    pub id: u64,
+    #[pyo3(get)]
+    pub title: String,
+    #[pyo3(get)]
+    pub release_date: String,
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct EpisodeMinimal{
+    #[pyo3(get)]
+    pub id: u64,
+    #[pyo3(get)]
+    pub title: String,
+    #[pyo3(get)]
+    pub season_number: u64,
+    #[pyo3(get)]
+    pub episode_number: u64
+}
 
 
-#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum MediaInfo{
-    Tv{
-        title: String,
-        season_number: u64,
-        episode_number: u64
-    },
-    Movie{
-        title: String,
-        release_date: String,
-    },
+    Tv(EpisodeMinimal),
+    Movie(MovieMinimal),
     Unknown,
 }
 
@@ -131,8 +149,6 @@ pub struct VideoResult{
     pub path: String,
     #[pyo3(get)]
     pub media_type: u8,
-    #[pyo3(get)]
-    pub media_id: Option<u64>,
     #[pyo3(get)]
     pub adding: String,
     pub info: MediaInfo,
