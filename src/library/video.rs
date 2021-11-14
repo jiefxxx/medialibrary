@@ -70,7 +70,7 @@ impl Video{
                         video.size = track.getattr("file_size")?.extract()?;
                     },
                     "Video" => {
-                        video.codec = track.getattr("codec_id")?.extract().unwrap();
+                        video.codec = track.getattr("codec_id")?.extract()?;
                         video.width = track.getattr("width")?.extract()?;
                         video.height = track.getattr("height")?.extract()?;
                     },
