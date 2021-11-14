@@ -22,7 +22,7 @@ pub struct Video{
     #[pyo3(get)]
     pub adding: String,
     #[pyo3(get)]
-    pub codec: String,
+    pub codec: Option<String>,
     #[pyo3(get)]
     pub width: u64,
     #[pyo3(get)]
@@ -46,7 +46,7 @@ impl Video{
             duration: 0,
             size: 0,
             adding: String::new(),
-            codec: String::new(),
+            codec: None,
             width: 0,
             height: 0,
             subtitles: Vec::new(),

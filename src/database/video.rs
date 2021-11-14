@@ -24,7 +24,7 @@ impl SqlLibrary{
             &video.media_type.to_string(),
             &video.duration.to_string(),
             &video.bit_rate.to_string(),
-            &video.codec,
+            &video.codec.as_ref().unwrap_or(&"".to_string()),
             &video.width.to_string(),
             &video.height.to_string(),
             &video.size.to_string()],
@@ -141,7 +141,7 @@ impl SqlLibrary{
                 
             }
         }
-        
+
         let mut stmt = self.conn.prepare(&sql)?;
     
         let rows = stmt.query_map(param.as_slice(), |row| {
