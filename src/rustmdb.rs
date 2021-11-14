@@ -272,22 +272,25 @@ impl <'a>TvSearch<'a> {
             first_air_date_year: None,
         }
     }
-
+    #[allow(dead_code)]
     pub fn page(&mut self, page: u64) -> &mut TvSearch<'a>{
         self.page = page;
         self
     }
 
+    #[allow(dead_code)]
     pub fn language(&mut self, language: &'a str) -> &mut TvSearch<'a>{
         self.language = language;
         self
     }
 
+    #[allow(dead_code)]
     pub fn include_adult(&mut self, include_adult: bool) -> &mut TvSearch<'a>{
         self.include_adult = Some(include_adult);
         self
     }
 
+    #[allow(dead_code)]
     pub fn request(&self) -> Result<SearchResult<SearchTv>, reqwest::Error>{
 
         let mut parameters = format!("api_key={}&query={}&page={}&language={}", self.api_key, self.query, self.page, self.language);
@@ -331,21 +334,25 @@ impl <'a>MovieSearch<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn page(&mut self, page: u64) -> &mut MovieSearch<'a>{
         self.page = page;
         self
     }
 
+    #[allow(dead_code)]
     pub fn language(&mut self, language: &'a str) -> &mut MovieSearch<'a>{
         self.language = language;
         self
     }
 
+    #[allow(dead_code)]
     pub fn include_adult(&mut self, include_adult: bool) -> &mut MovieSearch<'a>{
         self.include_adult = Some(include_adult);
         self
     }
 
+    #[allow(dead_code)]
     pub fn region(&mut self, region: &'a str)-> &mut MovieSearch<'a>{
         self.region = Some(region);
         self
@@ -356,6 +363,7 @@ impl <'a>MovieSearch<'a> {
         self
     }
 
+    #[allow(dead_code)]
     pub fn primary_release_year(&mut self, primary_release_year: u64)-> &mut MovieSearch<'a>{
         self.primary_release_year = Some(primary_release_year);
         self
