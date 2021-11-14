@@ -63,7 +63,7 @@ impl SqlLibrary{
         )?;
 
         self.conn.execute(
-            "CREATE VIEW VideosView
+            "CREATE VIEW IF NOT EXISTS VideosView
                 AS 
                 SELECT
                     Videos.id as id,
