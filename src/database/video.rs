@@ -131,19 +131,17 @@ impl SqlLibrary{
                 }
                 
                 if let Some((operator, value)) = value{
-                    println!("param {} ", &value);
                     param.push(value);
                     sql += &format!("{} {} ?{} ", name, operator, &counter);
                     counter += 1;
                 }
                 else{
                     sql += &format!("{} IS NULL ", name);
-                    println!("param NULL");
                 }
                 
             }
         }
-        println!("sql {} ", &sql);
+        
         let mut stmt = self.conn.prepare(&sql)?;
     
         let rows = stmt.query_map(param.as_slice(), |row| {
