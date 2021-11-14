@@ -132,15 +132,19 @@ impl SqlLibrary{
                 
                 if let Some((operator, value)) = value{
                     param.push(value);
-                    sql += &format!("{} {} ?{} ", name, operator, &counter);
-                    counter += 1;
+                    sql += &format!("{} {} ?{} ", name, operator, &param.len());
+                    
                 }
                 else{
                     sql += &format!("{} IS NULL ", name);
                 }
                 
+                counter += 1;
             }
         }
+        sql += ";";
+
+        println!("sql: {}", &sql);
 
         let mut stmt = self.conn.prepare(&sql)?;
     

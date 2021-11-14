@@ -87,13 +87,13 @@ impl SqlLibrary{
                     ord) values (?1, ?2, ?3, ?4)",
     
                 &[
-                &cast.cast_id.unwrap().to_string(),
+                &cast.id.to_string(),
                 &movie.id.to_string(),
-                &cast.character, 
+                &cast.character.as_ref().unwrap_or(&"".to_string()), 
                 &cast.order.to_string()],
             )?;
 
-            person_ids.push(cast.cast_id.unwrap())
+            person_ids.push(cast.id)
         }
 
         tx.commit()?;

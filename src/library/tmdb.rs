@@ -9,20 +9,23 @@ impl Library {
         if movies.results.len() == 0{
             return None
         }
+        
         let mut score = 0.0;
         let mut best: &SearchMovie = &movies.results[0];
         for movie in &movies.results{
             let score_original_title = jaro(title, &movie.original_title);
-            let score_title = jaro(title, &movie.title);
             if score_original_title > score  || (score_original_title == score && movie.release_date[..4] == year.to_string()){
                 score = score_original_title;
                 best = movie;
             }
-            if score_title > score || (score_original_title == score && movie.release_date[..4] == year.to_string()){
+
+            let score_title = jaro(title, &movie.title);
+            if score_title > score || (score_title == score && movie.release_date[..4] == year.to_string()){
                 score = score_title;
                 best = movie;
             }
         }
+
         Some(best.id)
     }
 

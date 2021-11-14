@@ -73,7 +73,7 @@ impl Library {
 
         let tv: Tv = match self.tmdb.tv(tv_id){
             Ok(tv) => tv,
-            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for MovieID {:?}", e, tv_id))),
+            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for TvID {:?}", e, tv_id))),
         };
 
     
