@@ -105,7 +105,7 @@ impl SqlLibrary{
         }
 
         for cast in &tv.credits.cast{
-            if cast.cast_id.is_none(){
+            if  cast.order > 15{
                 continue
             }
     
@@ -166,7 +166,7 @@ impl SqlLibrary{
         )?;
 
         for cast in &episode.credits.cast{
-            if cast.cast_id.is_none(){
+            if cast.order > 15{
                 continue
             }
     

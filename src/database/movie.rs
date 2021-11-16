@@ -75,7 +75,7 @@ impl SqlLibrary{
         }
 
         for cast in &movie.credits.cast{
-            if cast.cast_id.is_none(){
+            if cast.order > 10{
                 continue
             }
     
