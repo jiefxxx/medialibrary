@@ -1,4 +1,4 @@
-use crate::rustmdb::Person;
+use crate::rustmdb::model::Person;
 
 use super::SqlLibrary;
 

@@ -4,7 +4,7 @@ use super::SqlLibrary;
 
 
 impl SqlLibrary{
-    pub fn create_movie(&mut self, movie: &rustmdb::Movie) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+    pub fn create_movie(&mut self, movie: &rustmdb::model::Movie) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
         let tx = self.conn.transaction()?;
 
         let mut person_ids = Vec::new();

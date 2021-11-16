@@ -4,7 +4,7 @@ use std::fs::File;
 use pyo3::prelude::*;
 use pyo3::exceptions::PyReferenceError;
 
-use crate::rustmdb::{Movie, Tv};
+use crate::rustmdb::{model::Movie, model::Tv};
 
 use super::Library;
 

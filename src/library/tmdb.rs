@@ -1,4 +1,4 @@
-use crate::rustmdb::{SearchMovie, SearchTv};
+use crate::rustmdb::model::{SearchMovie, SearchTv};
 
 use super::Library;
 use strsim::jaro;

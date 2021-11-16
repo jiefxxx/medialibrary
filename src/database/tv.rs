@@ -1,4 +1,4 @@
-use crate::rustmdb::{Tv, TvEpisode};
+use crate::rustmdb::model::{Tv, TvEpisode};
 
 use super::SqlLibrary;
 
