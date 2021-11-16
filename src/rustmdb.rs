@@ -21,9 +21,9 @@ pub struct Person {
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct SearchResult<T>{
-    pub page: u8,
-    pub total_results: u8,
-    pub total_pages: u8,
+    pub page: u64,
+    pub total_results: u64,
+    pub total_pages: u64,
     pub results: Vec<T>,
 }
 
@@ -165,7 +165,7 @@ pub struct Network {
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Season {
-    pub air_date: String,
+    pub air_date: Option<String>,
     pub episode_count: u64,
     pub name: String,
     pub id: u64,
@@ -244,7 +244,7 @@ pub struct SearchTv {
     pub original_language: String,
     pub original_country: Option<Vec<String>>,
     pub overview: Option<String>,
-    pub first_air_date: String,
+    pub first_air_date: Option<String>,
     pub genre_ids: Vec<u16>,
     pub poster_path: Option<String>,
     pub backdrop_path: Option<String>,
@@ -429,10 +429,17 @@ impl Tmdb{
         Ok(body.json()?)
     }
 
-    pub fn tv_episode(&self, id: u64, season: u64, episode: u64) -> Result<TvEpisode, reqwest::Error>{
+    pub fn tv_episode(&self, id: u64, season: u64, episode: u64) -> Result<Option<TvEpisode>, reqwest::Error>{
         let parameters = format!("api_key={}&language={}&append_to_response=credits", self.api_key, self.language);
         let body =reqwest::blocking::get(format!("https://api.themoviedb.org/3/tv/{}/season/{}/episode/{}?{}",id, season, episode, parameters))?;
-        Ok(body.json()?)
+        if body.status().is_success(){
+            Ok(Some(body.json()?))
+        }
+        else{
+            println!("error episode for id:{} season:{} episode: {} error={:?}", id, season, episode, body.text()?);
+            Ok(None)
+        }
+
     }
 
     pub fn person(&self, id: u64) -> Result<Person, reqwest::Error>{

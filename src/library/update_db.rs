@@ -104,8 +104,9 @@ impl Library {
         };
 
         let episode = match self.tmdb.tv_episode(tv_id, season_number, episode_number){
-            Ok(episode) => episode,
+            Ok(Some(episode)) => episode,
             Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for tv_id {:?} season {:?} episode {:?}", e, tv_id, season_number, episode_number))),
+            Ok(None) => return Err(PyReferenceError::new_err(format!("tmdb error not found tv_id {:?} season {:?} episode {:?}", tv_id, season_number, episode_number)))
         };
 
         match self.conn.create_episode(tv_id, &episode){
