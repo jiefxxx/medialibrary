@@ -17,10 +17,7 @@ impl Library {
             _ => ()
         };
 
-        let movie: Movie = match self.tmdb.movie(movie_id){
-            Ok(movie) => movie,
-            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for MovieID {:?}", e, movie_id))),
-        };
+        let movie = self.tmdb.movie(movie_id)?;
 
         match self.conn.create_movie(&movie){
             Ok((person_ids, rsc_paths)) => {
@@ -44,23 +41,18 @@ impl Library {
             _ => ()
         };
 
-        match self.tmdb.person(person_id) {
-            Ok(person) => {
-                match self.conn.create_person(&person){
-                    Ok((person_ids, rsc_paths)) => {
-                        for person_id in person_ids{
-                            self.update_db_person(person_id)?;
-                        }
-                        for rsc_path in rsc_paths{
-                            self.update_rsc(&rsc_path)?;
-                        }
-                    },
-                    Err(e) => return Err(PyReferenceError::new_err(format!("database error create person {:?} error:{}", person, e))),
-                };
+        let person = self.tmdb.person(person_id)?;
+        match self.conn.create_person(&person){
+            Ok((person_ids, rsc_paths)) => {
+                for person_id in person_ids{
+                    self.update_db_person(person_id)?;
+                }
+                for rsc_path in rsc_paths{
+                    self.update_rsc(&rsc_path)?;
+                }
             },
-            Err(e) => println!("tmdb error {} for PersonID {:?}", e, person_id),
+            Err(e) => return Err(PyReferenceError::new_err(format!("database error create person {:?} error:{}", person, e))),
         };
-
         Ok(())
     }
 
@@ -71,11 +63,7 @@ impl Library {
             _ => ()
         };
 
-        let tv: Tv = match self.tmdb.tv(tv_id){
-            Ok(tv) => tv,
-            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for TvID {:?}", e, tv_id))),
-        };
-
+        let tv = self.tmdb.tv(tv_id)?;
     
         match self.conn.create_tv(&tv){
             Ok((person_ids, rsc_paths)) => {
@@ -103,11 +91,7 @@ impl Library {
             _ => ()
         };
 
-        let episode = match self.tmdb.tv_episode(tv_id, season_number, episode_number){
-            Ok(Some(episode)) => episode,
-            Err(e) => return Err(PyReferenceError::new_err(format!("tmdb error {} for tv_id {:?} season {:?} episode {:?}", e, tv_id, season_number, episode_number))),
-            Ok(None) => return Err(PyReferenceError::new_err(format!("tmdb error not found tv_id {:?} season {:?} episode {:?}", tv_id, season_number, episode_number)))
-        };
+        let episode = self.tmdb.tv_episode(tv_id, season_number, episode_number)?;
 
         match self.conn.create_episode(tv_id, &episode){
             Ok((person_ids, rsc_paths)) => {
@@ -134,12 +118,9 @@ impl Library {
             Err(e) => return Err(PyReferenceError::new_err(format!("reqwest error getting poster path {}", e))),
         };
 
-        let mut out = match File::create(self.rsc_path.clone()+rsc_path){
-            Ok(out) => out,
-            Err(e) => return Err(PyReferenceError::new_err(format!("file create error {}", e))),
-        };
+        let mut out = File::create(self.rsc_path.clone()+rsc_path)?;
 
-        io::copy(&mut resp.as_ref(), &mut out).expect("failed to copy content");
+        io::copy(&mut resp.as_ref(), &mut out)?;
 
         Ok(())
     }

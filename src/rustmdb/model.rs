@@ -1,5 +1,14 @@
+use reqwest::StatusCode;
+
 extern crate reqwest;
 extern crate serde;
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct ErrorModel{
+    pub status_code: u64,
+    pub status_message: String,
+}
+
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Person {
