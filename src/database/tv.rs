@@ -10,7 +10,7 @@ impl SqlLibrary{
 
         let mut person_ids = Vec::new();
         let mut rsc_path = Vec::new();
-        println!("adding tv {:?}", tv);
+        // println!("adding tv {:?}", tv);
         tx.execute(
             "INSERT OR REPLACE INTO Tvs (
                 id,
@@ -50,7 +50,7 @@ impl SqlLibrary{
         )?;
 
         for season in &tv.seasons{
-            println!("season {}", season.season_number);
+            // println!("season {}", season.season_number);
             tx.execute(
                 "INSERT OR REPLACE INTO Seasons (
                     id,
@@ -193,7 +193,7 @@ impl SqlLibrary{
     }
 
     pub fn get_season_id(&self, tv_id: u64, season_number: u64) -> Result<Option<u64>, rusqlite::Error> {
-        println!("get season id {} {}", &tv_id, &season_number);
+        // println!("get season id {} {}", &tv_id, &season_number);
         let mut stmt = self.conn.prepare(
             "SELECT id from Seasons
              WHERE tv_id = ?1 and season_number = ?2",
