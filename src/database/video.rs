@@ -144,7 +144,7 @@ impl SqlLibrary{
         }
         sql += ";";
 
-        println!("sql: {}", &sql);
+        // println!("sql: {}", &sql);
 
         let mut stmt = self.conn.prepare(&sql)?;
     
