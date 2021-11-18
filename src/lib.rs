@@ -1,5 +1,8 @@
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate lazy_static;
+
 
 mod database;
 mod rustmdb;
@@ -13,6 +16,9 @@ use pyo3::exceptions::PyException;
 use library::Library;
 use library::video::Video;
 
+use rustmdb::{TMDBKEY, LANGUAGE, Tmdb};
+
+
 create_exception!(medialibrary, TmdbError, PyException);
 
 impl std::convert::From<rustmdb::Error> for PyErr {
@@ -22,15 +28,17 @@ impl std::convert::From<rustmdb::Error> for PyErr {
 }
 
 #[pyfunction]
-fn say_hello(path: &str)  -> PyResult<()> {
-    println!("Hello world! {:?}", path);
+fn tmdb_init(key: &str, lang: &str)  -> PyResult<()> {
+    *TMDBKEY.lock().unwrap() = key.to_string();
+    *LANGUAGE.lock().unwrap() = lang.to_string();
     Ok(())
 }
 
 #[pymodule]
 fn medialibrary(py: Python, module: &PyModule) -> PyResult<()> {
     module.add("TmdbError", py.get_type::<TmdbError>())?;
-    module.add_function(wrap_pyfunction!(say_hello, module)?)?;
+    module.add_function(wrap_pyfunction!(tmdb_init, module)?)?;
+    module.add_class::<Tmdb>()?;
     module.add_class::<Library>()?;
     module.add_class::<Video>()?;
     Ok(())

@@ -1,5 +1,3 @@
-use reqwest::StatusCode;
-
 extern crate reqwest;
 extern crate serde;
 

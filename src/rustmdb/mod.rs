@@ -1,33 +1,93 @@
 use std::fmt;
+use std::sync::{Arc, Mutex};
 
 use crate::rustmdb::model::ErrorModel;
+use pyo3::prelude::*;
 
-use self::{model::{Movie, Person, Tv, TvEpisode}, movie::MovieSearch, tv::TvSearch};
+use self::{model::{Movie, Person, SearchMovie, SearchTv, Tv, TvEpisode}, movie::MovieSearch, tv::TvSearch};
 
 pub mod model;
 pub mod tv;
 pub mod movie;
 
+use strsim::jaro;
+
+
+lazy_static! {
+    pub static ref TMDBKEY: Arc<Mutex<String>> = Arc::new(Mutex::new("".to_string()));
+    pub static ref LANGUAGE: Arc<Mutex<String>> = Arc::new(Mutex::new("fr".to_string()));
+}
+
+#[pyclass]
 pub struct Tmdb{
-    api_key: &'static str,
-    language: &'static str,
+}
+
+#[pymethods]
+impl Tmdb{
+    #[new]
+    pub fn new() -> Tmdb{
+        Tmdb{}
+    }
+
+    pub fn search_movie_id(&self, title: &str, year: u64) -> PyResult<Option<u64>>{
+        let movies  = self.search_movie(title).year(year).request()?;
+        if movies.results.len() == 0{
+            return Ok(None)
+        }
+        
+        let mut score = 0.0;
+        let mut best: &SearchMovie = &movies.results[0];
+        for movie in &movies.results{
+            let score_original_title = jaro(title, &movie.original_title);
+            if score_original_title > score  || (score_original_title == score && movie.release_date[..4] == year.to_string()){
+                score = score_original_title;
+                best = movie;
+            }
+
+            let score_title = jaro(title, &movie.title);
+            if score_title > score || (score_title == score && movie.release_date[..4] == year.to_string()){
+                score = score_title;
+                best = movie;
+            }
+        }
+
+        Ok(Some(best.id))
+    }
+
+    pub fn search_tv_id(&self, title: &str) -> PyResult<Option<u64>>{
+        let tvs  = self.search_tv(title).request()?;
+        if tvs.results.len() == 0{
+            return Ok(None)
+        }
+        let mut score = 0.0;
+        let mut best: &SearchTv = &tvs.results[0];
+        for tv in &tvs.results{
+            let score_original_title = jaro(title, &tv.original_name);
+            let score_title = jaro(title, &tv.name);
+            if score_original_title > score{
+                score = score_original_title;
+                best = tv;
+            }
+            if score_title > score{
+                score = score_title;
+                best = tv;
+            }
+        }
+        Ok(Some(best.id))
+    }
 }
 
 impl Tmdb{
-    pub fn new(api_key: &'static str, language: &'static str) -> Tmdb{
-        Tmdb{api_key, language}
-    }
-
     pub fn search_movie<'a>(&self, title: &'a str) -> MovieSearch<'a>{
-        MovieSearch::new(self.api_key, &title, self.language)
+        MovieSearch::new(&title)
     }
 
     pub fn search_tv<'a>(&self, title:&'a str) -> TvSearch<'a>{
-        TvSearch::new(self.api_key, title, self.language)
+        TvSearch::new(title)
     }
 
     pub fn movie(&self, id: u64) -> Result<Movie, Error>{
-        let parameters = format!("api_key={}&language={}&append_to_response=credits", self.api_key, self.language);
+        let parameters = format!("api_key={}&language={}&append_to_response=credits", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
         let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/movie/{}?{}",id, parameters)){
             Ok(body) => body,
             Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.movie({})", &id)))
@@ -46,7 +106,7 @@ impl Tmdb{
     }
 
     pub fn tv(&self, id: u64) -> Result<Tv, Error>{
-        let parameters = format!("api_key={}&language={}&append_to_response=credits", self.api_key, self.language);
+        let parameters = format!("api_key={}&language={}&append_to_response=credits", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
         let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/tv/{}?{}",id, parameters)){
             Ok(body) => body,
             Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.tv({})", id)))
@@ -65,7 +125,7 @@ impl Tmdb{
     }
 
     pub fn tv_episode(&self, id: u64, season: u64, episode: u64) -> Result<TvEpisode, Error>{
-        let parameters = format!("api_key={}&language={}&append_to_response=credits", self.api_key, self.language);
+        let parameters = format!("api_key={}&language={}&append_to_response=credits", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
         let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/tv/{}/season/{}/episode/{}?{}",id, season, episode, parameters)){
             Ok(body) => body,
             Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.episode({} s{}e{})", id, season, episode)))
@@ -85,7 +145,7 @@ impl Tmdb{
     }
 
     pub fn person(&self, id: u64) -> Result<Person, Error>{
-        let parameters = format!("api_key={}&language={}", self.api_key, self.language);
+        let parameters = format!("api_key={}&language={}", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
         let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/person/{}?{}",id, parameters)){
             Ok(body) => body,
             Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.person({})", id)))
@@ -113,6 +173,7 @@ pub enum ErrorKind{
     Tmdb,
 }
 
+#[derive(Debug)]
 pub struct Error{
     kind: ErrorKind,
     description: String,

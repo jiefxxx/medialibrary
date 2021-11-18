@@ -10,13 +10,8 @@ use pyo3::exceptions::PyReferenceError;
 
 mod update_db;
 pub mod video;
-mod tmdb;
 
 use video::{Video, VideoResult};
-
-fn string_to_static_str(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
 
 fn create_sql_param(kwargs: Option<&PyDict>) -> PyResult<HashMap<&str, Option<(String, String)>>>{
     let mut map = HashMap::new();
@@ -76,10 +71,8 @@ pub struct Library{
 #[pymethods]
 impl Library {
     #[new]
-    pub fn new(database_path: &str, api_key: &str, language: &str, rsc_path: String) -> Self {
-        let api_key = string_to_static_str(api_key.to_string());
-        let language = string_to_static_str(language.to_string());
-        let tmdb = Tmdb::new(api_key, language);
+    pub fn new(database_path: &str, rsc_path: String) -> Self {
+        let tmdb = Tmdb::new();
         let conn = SqlLibrary::new(database_path).unwrap();
         conn.init_db().unwrap();
         Library{ conn, tmdb, rsc_path}
@@ -137,24 +130,5 @@ impl Library {
 
         Ok(())
     }
-
-    //tmdb part
-
-    pub fn find_movie(&self, title: &str, year: u64) -> PyResult<Option<u64>>{
-        todo!();
-    }
-
-    pub fn find_tv(&self, title: &str) -> PyResult<Option<u64>>{
-        todo!();
-    }
-
-    pub fn find_movie_id(&self,  title: &str, year: u64) -> PyResult<Option<u64>>{
-       Ok(self.search_movie_id(title, year))
-    }
-
-    pub fn find_tv_id(&self,  title: &str) -> PyResult<Option<u64>>{
-        Ok(self.search_tv_id(title))
-     }
-
 
 }

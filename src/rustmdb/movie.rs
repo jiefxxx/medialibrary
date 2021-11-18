@@ -1,8 +1,10 @@
-use super::model::{SearchMovie, SearchResult};
+use super::{Error, ErrorKind, TMDBKEY, LANGUAGE};
+
+use super::model::{SearchMovie, SearchResult, ErrorModel};
 
 pub struct MovieSearch <'a>{
-    api_key: &'a str,
-    language: &'a str,
+    api_key: String,
+    language: String,
     query: &'a str,
     page: u64,
     include_adult: Option<bool>,
@@ -12,10 +14,10 @@ pub struct MovieSearch <'a>{
 }
 
 impl <'a>MovieSearch<'a> {
-    pub fn new(api_key: &'a str, query: &'a str, language: &'a str) -> MovieSearch<'a>{
+    pub fn new(query: &'a str,) -> MovieSearch<'a>{
         MovieSearch{
-            api_key,
-            language,
+            api_key: TMDBKEY.lock().unwrap().to_string(),
+            language: LANGUAGE.lock().unwrap().to_string(),
             query,
             page: 1,
             include_adult: None,
@@ -32,8 +34,8 @@ impl <'a>MovieSearch<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn language(&mut self, language: &'a str) -> &mut MovieSearch<'a>{
-        self.language = language;
+    pub fn language(&mut self, language: &str) -> &mut MovieSearch<'a>{
+        self.language = language.to_string();
         self
     }
 
@@ -62,7 +64,7 @@ impl <'a>MovieSearch<'a> {
 
 
 
-    pub fn request(&self) -> Result<SearchResult<SearchMovie>, reqwest::Error>{
+    pub fn request(&self) -> Result<SearchResult<SearchMovie>, Error>{
 
         let mut parameters = format!("api_key={}&query={}&page={}&language={}", self.api_key, self.query, self.page, self.language);
 
@@ -85,7 +87,21 @@ impl <'a>MovieSearch<'a> {
             parameters += "&primary_release_year=";
             parameters += &primary_release_year.to_string();
         }
-        let body =reqwest::blocking::get(format!("https://api.themoviedb.org/3/search/movie?{}",parameters))?;
-        Ok(body.json()?)
+
+        let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/search/movie?{}",parameters)){
+            Ok(body) => body,
+            Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.SearchMovie({})", self.query)))
+        };
+        if body.status().is_success(){
+            match body.json(){
+                Ok(movie) => return Ok(movie),
+                Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.SearchMovie({}) parse body",  self.query))),
+            };
+        }
+        let e: ErrorModel = match body.json(){
+            Ok(e) => e,
+            Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.SearchMovie({}) parse error",  self.query))),
+        };
+        Err(Error::new(ErrorKind::Tmdb, e.status_message, &format!("tmdb.SearchMovie({})",  self.query)))
     }
 }
