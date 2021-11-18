@@ -16,7 +16,7 @@ use pyo3::exceptions::PyException;
 use library::Library;
 use library::video::Video;
 
-use rustmdb::{TMDBKEY, LANGUAGE, Tmdb};
+use rustmdb::{set_api_key, set_language, Tmdb};
 
 
 create_exception!(medialibrary, TmdbError, PyException);
@@ -29,8 +29,8 @@ impl std::convert::From<rustmdb::Error> for PyErr {
 
 #[pyfunction]
 fn tmdb_init(key: &str, lang: &str)  -> PyResult<()> {
-    *TMDBKEY.lock().unwrap() = key.to_string();
-    *LANGUAGE.lock().unwrap() = lang.to_string();
+    set_api_key(key);
+    set_language(lang);
     Ok(())
 }
 

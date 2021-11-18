@@ -13,7 +13,7 @@ impl SqlLibrary{
         let mut rsc_path = Vec::new();
 
         tx.execute(
-            "INSERT INTO Persons (
+            "INSERT OR REPLACE INTO Persons (
                 id,
                 birthday,
                 known_for_department,

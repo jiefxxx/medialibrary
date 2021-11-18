@@ -11,7 +11,7 @@ impl SqlLibrary{
         let mut rsc_path = Vec::new();
 
         tx.execute(
-            "INSERT INTO Movies (
+            "INSERT OR REPLACE INTO Movies (
                 id,
                 original_title,
                 original_language,
@@ -54,7 +54,7 @@ impl SqlLibrary{
 
         for genre in &movie.genres{
             tx.execute(
-                "INSERT OR IGNORE INTO MovieGenres (
+                "INSERT OR REPLACE INTO MovieGenres (
                     id,
                     name) values (?1, ?2)",
     
@@ -64,7 +64,7 @@ impl SqlLibrary{
             )?;
 
             tx.execute(
-                "INSERT INTO MovieGenreLinks (
+                "INSERT OR REPLACE INTO MovieGenreLinks (
                     genre_id,
                     movie_id) values (?1, ?2)",
     
@@ -80,7 +80,7 @@ impl SqlLibrary{
             }
     
             tx.execute(
-                "INSERT INTO MovieCasts (
+                "INSERT OR REPLACE INTO MovieCasts (
                     person_id,
                     movie_id,
                     character,

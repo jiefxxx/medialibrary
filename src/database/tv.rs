@@ -12,7 +12,7 @@ impl SqlLibrary{
         let mut rsc_path = Vec::new();
         println!("adding tv {:?}", tv);
         tx.execute(
-            "INSERT INTO Tvs (
+            "INSERT OR REPLACE INTO Tvs (
                 id,
                 original_title,
                 original_language,
@@ -35,7 +35,7 @@ impl SqlLibrary{
             &tv.original_name,
             &tv.original_language,
             &tv.name,
-            &tv.first_air_date,
+            &tv.first_air_date.as_ref().unwrap_or(&"".to_string()),
             &tv.overview.as_ref().unwrap_or(&"".to_string()),
             &tv.popularity.to_string(),
             &tv.poster_path.as_ref().unwrap_or(&"".to_string()),
@@ -52,7 +52,7 @@ impl SqlLibrary{
         for season in &tv.seasons{
             println!("season {}", season.season_number);
             tx.execute(
-                "INSERT INTO Seasons (
+                "INSERT OR REPLACE INTO Seasons (
                     id,
                     tv_id,
                     season_number,
@@ -70,7 +70,7 @@ impl SqlLibrary{
                 &season.name,
                 &season.overview.as_ref().unwrap_or(&"".to_string()),
                 &season.poster_path.as_ref().unwrap_or(&"".to_string()),
-                &tv.first_air_date,],
+                &season.air_date.as_ref().unwrap_or(&"".to_string()),],
             )?;
         }
 
@@ -84,7 +84,7 @@ impl SqlLibrary{
 
         for genre in &tv.genres{
             tx.execute(
-                "INSERT OR IGNORE INTO TvGenres (
+                "INSERT OR REPLACE INTO TvGenres (
                     id,
                     name) values (?1, ?2)",
     
@@ -94,7 +94,7 @@ impl SqlLibrary{
             )?;
 
             tx.execute(
-                "INSERT INTO TvGenreLinks (
+                "INSERT OR REPLACE INTO TvGenreLinks (
                     genre_id,
                     tv_id) values (?1, ?2)",
     
@@ -110,7 +110,7 @@ impl SqlLibrary{
             }
     
             tx.execute(
-                "INSERT INTO TvCasts (
+                "INSERT OR REPLACE INTO TvCasts (
                     person_id,
                     tv_id,
                     character,
@@ -140,7 +140,7 @@ impl SqlLibrary{
         let rsc_path = Vec::new();
         
         tx.execute(
-            "INSERT INTO Episodes (
+            "INSERT OR REPLACE INTO Episodes (
                 id,
                 season_id,
                 tv_id,
@@ -171,7 +171,7 @@ impl SqlLibrary{
             }
     
             tx.execute(
-                "INSERT INTO EpisodeCasts (
+                "INSERT OR REPLACE INTO EpisodeCasts (
                     person_id,
                     episode_id,
                     character,

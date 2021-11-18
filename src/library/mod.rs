@@ -2,7 +2,6 @@
 use std::collections::HashMap;
 
 use crate::database::SqlLibrary;
-use crate::rustmdb::Tmdb;
 
 use pyo3::types::{PyFloat, PyLong, PyTuple, PyUnicode};
 use pyo3::{prelude::*, types::PyDict};
@@ -64,7 +63,6 @@ fn create_sql_param(kwargs: Option<&PyDict>) -> PyResult<HashMap<&str, Option<(S
 #[pyclass]
 pub struct Library{
     conn: SqlLibrary,
-    tmdb: Tmdb,
     rsc_path: String,
 }
 
@@ -72,10 +70,9 @@ pub struct Library{
 impl Library {
     #[new]
     pub fn new(database_path: &str, rsc_path: String) -> Self {
-        let tmdb = Tmdb::new();
         let conn = SqlLibrary::new(database_path).unwrap();
         conn.init_db().unwrap();
-        Library{ conn, tmdb, rsc_path}
+        Library{ conn, rsc_path}
     }
 
     pub fn create_video(&self, path: String, media_type: u8) -> PyResult<u64> {

@@ -4,6 +4,8 @@ use std::fs::File;
 use pyo3::prelude::*;
 use pyo3::exceptions::PyReferenceError;
 
+use crate::rustmdb::{get_movie, get_person, get_tv, get_tv_episode};
+
 use super::Library;
 
 
@@ -15,7 +17,7 @@ impl Library {
             _ => ()
         };
 
-        let movie = self.tmdb.movie(movie_id)?;
+        let movie = get_movie(movie_id)?;
 
         match self.conn.create_movie(&movie){
             Ok((person_ids, rsc_paths)) => {
@@ -39,7 +41,7 @@ impl Library {
             _ => ()
         };
 
-        let person = self.tmdb.person(person_id)?;
+        let person = get_person(person_id)?;
         match self.conn.create_person(&person){
             Ok((person_ids, rsc_paths)) => {
                 for person_id in person_ids{
@@ -61,7 +63,7 @@ impl Library {
             _ => ()
         };
 
-        let tv = self.tmdb.tv(tv_id)?;
+        let tv = get_tv(tv_id)?;
     
         match self.conn.create_tv(&tv){
             Ok((person_ids, rsc_paths)) => {
@@ -89,7 +91,7 @@ impl Library {
             _ => ()
         };
 
-        let episode = self.tmdb.tv_episode(tv_id, season_number, episode_number)?;
+        let episode = get_tv_episode(tv_id, season_number, episode_number)?;
 
         match self.conn.create_episode(tv_id, &episode){
             Ok((person_ids, rsc_paths)) => {
