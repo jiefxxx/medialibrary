@@ -10,101 +10,80 @@ use super::Library;
 
 
 impl Library {
-    pub fn update_db_movie(&mut self, movie_id: u64) -> PyResult<()>{
-        match self.conn.movie_exist(movie_id) {
-            Ok(true) => return Ok(()),
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error movie exist {}", e))),
-            _ => ()
-        };
+    pub fn create_movie(&mut self, movie_id: u64) -> PyResult<()>{
+        if self.conn.movie_exist(movie_id)?{
+            return Ok(())
+        }
+        self.update_movie(movie_id)
+    }
 
+    pub fn update_movie(&mut self, movie_id: u64) -> PyResult<()>{
         let movie = get_movie(movie_id)?;
-
-        match self.conn.create_movie(&movie){
-            Ok((person_ids, rsc_paths)) => {
-                for person_id in person_ids{
-                    self.update_db_person(person_id)?;
-                }
-                for rsc_path in rsc_paths{
-                    self.update_rsc(&rsc_path)?;
-                }
-            },
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error create movie {:?} error:{}", movie, e))),
-        };
+        let (person_ids, rsc_paths) = self.conn.create_movie(&movie)?;
+        for person_id in person_ids{
+            self.create_person(person_id)?;
+        }
+        for rsc_path in rsc_paths{
+            self.update_rsc(&rsc_path)?;
+        }
 
         Ok(())
     }
 
-    pub fn update_db_person(&mut self, person_id: u64) -> PyResult<()>{
-        match self.conn.person_exist(person_id) {
-            Ok(true) => return Ok(()),
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error person exist {}", e))),
-            _ => ()
-        };
+    pub fn create_person(&mut self, person_id: u64) -> PyResult<()>{
+        if self.conn.person_exist(person_id)?{
+            return Ok(())
+        }
+        self.update_person(person_id)
+    }
 
+    pub fn update_person(&mut self, person_id: u64) -> PyResult<()>{  
         let person = get_person(person_id)?;
-        match self.conn.create_person(&person){
-            Ok((person_ids, rsc_paths)) => {
-                for person_id in person_ids{
-                    self.update_db_person(person_id)?;
-                }
-                for rsc_path in rsc_paths{
-                    self.update_rsc(&rsc_path)?;
-                }
-            },
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error create person {:?} error:{}", person, e))),
-        };
+        let (_person_ids, rsc_paths) = self.conn.create_person(&person)?;
+        for rsc_path in rsc_paths{
+            self.update_rsc(&rsc_path)?;
+        }
         Ok(())
     }
 
-    pub fn update_db_tv(&mut self, tv_id: u64) -> PyResult<()>{
-        match self.conn.tv_exist(tv_id) {
-            Ok(true) => return Ok(()),
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error tv exist {}", e))),
-            _ => ()
-        };
+    pub fn create_tv(&mut self, tv_id: u64) -> PyResult<()>{
+        if self.conn.tv_exist(tv_id)?{
+            return Ok(())
+        }
+        self.update_tv(tv_id)
+    }
 
+    pub fn update_tv(&mut self, tv_id: u64) -> PyResult<()>{
         let tv = get_tv(tv_id)?;
-    
-        match self.conn.create_tv(&tv){
-            Ok((person_ids, rsc_paths)) => {
-                for person_id in person_ids{
-                    self.update_db_person(person_id)?;
-                }
-                for rsc_path in rsc_paths{
-                    self.update_rsc(&rsc_path)?;
-                }
-            },
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error create tv {:?} error:{}", tv, e))),
-        };
-
+        let (person_ids, rsc_paths) = self.conn.create_tv(&tv)?;
+        for person_id in person_ids{
+            self.create_person(person_id)?;
+        }
+        for rsc_path in rsc_paths{
+            self.update_rsc(&rsc_path)?;
+        }
         Ok(())
 
     }
 
-    pub fn update_db_episode(&mut self, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<u64>{
-        
-        self.update_db_tv(tv_id)?;
+    pub fn create_episode(&mut self, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<u64>{
+        if let Some(episode_id) = self.conn.episode_exist(tv_id, season_number, episode_number)?{
+            return Ok(episode_id)
+        }
+        self.update_episode(tv_id, season_number, episode_number)
+    }
 
-        match self.conn.episode_exist(tv_id, season_number, episode_number) {
-            Ok(Some(episode_id)) => return Ok(episode_id),
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error episode exist {}", e))),
-            _ => ()
-        };
+    pub fn update_episode(&mut self, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<u64>{
+        self.create_tv(tv_id)?;
 
         let episode = get_tv_episode(tv_id, season_number, episode_number)?;
-
-        match self.conn.create_episode(tv_id, &episode){
-            Ok((person_ids, rsc_paths)) => {
-                for person_id in person_ids{
-                    self.update_db_person(person_id)?;
-                }
-                for rsc_path in rsc_paths{
-                    self.update_rsc(&rsc_path)?;
-                }
-            },
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error create episode {}", e))),
-        };
-
+        let (person_ids, rsc_paths) = self.conn.create_episode(tv_id, &episode)?;
+        for person_id in person_ids{
+            self.create_person(person_id)?;
+        }
+        for rsc_path in rsc_paths{
+            self.update_rsc(&rsc_path)?;
+        }
         Ok(episode.id)
     }
 

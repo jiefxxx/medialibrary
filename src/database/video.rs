@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+use super::Error;
 use rusqlite::ToSql;
 
 use super::{SqlLibrary, parse_concat};
@@ -8,7 +8,7 @@ use crate::library::video::{MediaInfo, Video, VideoResult, EpisodeMinimal, Movie
 
 impl SqlLibrary{
 
-    pub fn create_video(&self, video: Video) -> Result<u64, rusqlite::Error>{
+    pub fn create_video(&self, video: Video) -> Result<u64, Error>{
         self.conn.execute(
             "INSERT INTO Videos (
                 path,
@@ -52,7 +52,7 @@ impl SqlLibrary{
         Ok(video_id)
     }
 
-    pub fn get_video(&self,video_id: u64) -> Result<Option<Video>, rusqlite::Error>{
+    pub fn get_video(&self,video_id: u64) -> Result<Option<Video>, Error>{
         let sql = "SELECT
                             id,
                             path,
@@ -75,38 +75,37 @@ impl SqlLibrary{
                         WHERE id = ?1";
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(&[&video_id.to_string()], |row| {
-            let media_id: Option<u64> = row.get(4)?;
+            let media_id: Option<u64> = row.get(3)?;
             let info = match media_id{
                 None => MediaInfo::Unknown,
-                Some(media_id) => match row.get(3)?{
+                Some(media_id) => match row.get(2)?{
                     0 => MediaInfo::Movie(MovieMinimal{
                         id: media_id,
-                        title: row.get(14)?,
-                        release_date: row.get(16)?,
+                        title: row.get(13)?,
+                        release_date: row.get(15)?,
                     }),
                     1 => MediaInfo::Tv(EpisodeMinimal{
                         id: media_id,
-                        title: row.get(15)?,
-                        season_number: row.get(17)?,
-                        episode_number: row.get(18)?,
+                        title: row.get(14)?,
+                        season_number: row.get(16)?,
+                        episode_number: row.get(17)?,
                     }),
                     _ => MediaInfo::Unknown,
                 }
             };
             Ok(Video{
-                id: row.get(1)?,
-                path:row.get(2)?,
-                media_type: row.get(3)?,
-                media_id,
-                bit_rate: row.get(6)?,
-                duration: row.get(5)?,
-                size: row.get(10)?,
-                adding: row.get(11)?,
-                codec: row.get(7)?,
-                width: row.get(8)?,
-                height: row.get(9)?,
-                subtitles: parse_concat(row.get(12)?).unwrap_or_default(),
-                audios: parse_concat(row.get(13)?).unwrap_or_default(),
+                id: row.get(0)?,
+                path:row.get(1)?,
+                media_type: row.get(2)?,
+                bit_rate: row.get(5)?,
+                duration: row.get(4)?,
+                size: row.get(9)?,
+                adding: row.get(10)?,
+                codec: row.get(6)?,
+                width: row.get(7)?,
+                height: row.get(8)?,
+                subtitles: parse_concat(row.get(11)?).unwrap_or_default(),
+                audios: parse_concat(row.get(12)?).unwrap_or_default(),
                 info,
             })
         })?;
@@ -118,7 +117,7 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_videos(&self, parameters: HashMap<&str, Option<(String, String)>>) -> Result<Vec<VideoResult>, rusqlite::Error>{
+    pub fn get_videos(&self, parameters: HashMap<&str, Option<(String, String)>>) -> Result<Vec<VideoResult>, Error>{
         let mut param: Vec<&dyn ToSql> = Vec::new();
         let mut sql = String::new();
         sql += "SELECT id, path, media_type, media_id, adding, m_title, t_title, release_date, episode_number, season_number FROM VideosView ";
@@ -183,7 +182,7 @@ impl SqlLibrary{
         Ok(result)
     }
 
-    pub fn edit_video_media_id(&self, video_id: u64, media_id: u64) -> Result<(), rusqlite::Error>{
+    pub fn edit_video_media_id(&self, video_id: u64, media_id: u64) -> Result<(), Error>{
         self.conn.execute(
             "UPDATE Videos SET media_id = ?1 WHERE id = ?2",
             &[
@@ -193,7 +192,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn edit_video_path(&self, video_id: u64, path: &str) -> Result<(), rusqlite::Error>{
+    pub fn edit_video_path(&self, video_id: u64, path: &str) -> Result<(), Error>{
         self.conn.execute(
             "UPDATE Videos SET path = ?1 WHERE id = ?2",
             &[
@@ -204,7 +203,7 @@ impl SqlLibrary{
     }
 
 
-    pub fn edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), rusqlite::Error>{
+    pub fn edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), Error>{
         self.conn.execute(
             "INSERT OR REPLACE INTO LastTime (
                 video_id,
@@ -218,20 +217,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn get_video_id(&self, path: &str) -> Result<u64, rusqlite::Error> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id from Videos
-             WHERE path = ?1",
-        )?;
-    
-        let rows = stmt.query_map(&[path], |row| row.get(0))?;
-        for row in rows{
-            return Ok(row?)
-        }
-        Err(rusqlite::Error::QueryReturnedNoRows)
-    }
-
-    pub fn get_video_media_type(&self, video_id: u64) -> Result<Option<u8>, rusqlite::Error>{
+    pub fn get_video_media_type(&self, video_id: u64) -> Result<Option<u8>, Error>{
         let mut stmt = self.conn.prepare(
             "SELECT media_type from Videos
              WHERE id = ?1",

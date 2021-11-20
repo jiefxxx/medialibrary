@@ -1,10 +1,10 @@
 use crate::rustmdb::model::{Tv, TvEpisode};
-
+use super::Error;
 use super::SqlLibrary;
 
 
 impl SqlLibrary{
-    pub fn create_tv(&mut self ,tv: &Tv) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+    pub fn create_tv(&mut self ,tv: &Tv) -> Result<(Vec<u64>, Vec<String>), Error>{
 
         let tx = self.conn.transaction()?;
 
@@ -131,7 +131,7 @@ impl SqlLibrary{
         Ok((person_ids, rsc_path))
     }
 
-    pub fn create_episode(&mut self, tv_id: u64, episode: &TvEpisode) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+    pub fn create_episode(&mut self, tv_id: u64, episode: &TvEpisode) -> Result<(Vec<u64>, Vec<String>), Error>{
         let season_id = self.get_season_id(tv_id, episode.season_number).unwrap().unwrap();
         
         let tx = self.conn.transaction()?;
@@ -192,7 +192,7 @@ impl SqlLibrary{
         Ok((person_ids, rsc_path))
     }
 
-    pub fn get_season_id(&self, tv_id: u64, season_number: u64) -> Result<Option<u64>, rusqlite::Error> {
+    pub fn get_season_id(&self, tv_id: u64, season_number: u64) -> Result<Option<u64>, Error> {
         // println!("get season id {} {}", &tv_id, &season_number);
         let mut stmt = self.conn.prepare(
             "SELECT id from Seasons
@@ -206,7 +206,7 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn tv_exist(&self, tv_id: u64) -> Result<bool, rusqlite::Error>{
+    pub fn tv_exist(&self, tv_id: u64) -> Result<bool, Error>{
         let mut stmt = self.conn.prepare(
             "SELECT title from Tvs
              WHERE id = ?1",
@@ -220,7 +220,7 @@ impl SqlLibrary{
         Ok(false)
     }
 
-    pub fn episode_exist(&self, tv_id: u64, season: u64, episode: u64) -> Result<Option<u64>, rusqlite::Error>{
+    pub fn episode_exist(&self, tv_id: u64, season: u64, episode: u64) -> Result<Option<u64>, Error>{
         let mut stmt = self.conn.prepare(
             "SELECT id from Episodes
              WHERE tv_id = ?1 AND season_number = ?2 AND episode_number = ?3",

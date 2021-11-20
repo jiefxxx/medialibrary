@@ -1,3 +1,5 @@
+use std::fmt;
+
 use rusqlite::Connection;
 
 mod video;
@@ -253,4 +255,42 @@ pub fn parse_concat( row: Option<String>) -> Option<Vec<String>>{
         return Some(row.split(",").map(|s| s.to_string()).collect())
     }
     None
+}
+
+#[derive(Debug)]
+pub enum ErrorKind{
+    Unknwon,
+}
+
+#[derive(Debug)]
+pub struct Error{
+    kind: ErrorKind,
+    description: String,
+    location: String,
+}
+
+impl Error{
+    pub fn new(kind: ErrorKind, description: String, location: &str) -> Error{
+        Error{
+            kind,
+            description,
+            location: location.to_string(), 
+        }
+    }
+
+    pub fn from_reqwest(e: rusqlite::Error, location: &str) -> Error{
+        Error::new(ErrorKind::Unknwon, e.to_string(), location)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Error: {:?} at {} {}", &self.kind, &self.location, &self.description)
+    }
+}
+
+impl std::convert::From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Error {
+        Error::from_reqwest(err, "Undefined")
+    }
 }

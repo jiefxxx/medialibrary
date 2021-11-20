@@ -1,10 +1,10 @@
 use crate::rustmdb;
-
+use super::Error;
 use super::SqlLibrary;
 
 
 impl SqlLibrary{
-    pub fn create_movie(&mut self, movie: &rustmdb::model::Movie) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+    pub fn create_movie(&mut self, movie: &rustmdb::model::Movie) -> Result<(Vec<u64>, Vec<String>), Error>{
         let tx = self.conn.transaction()?;
 
         let mut person_ids = Vec::new();
@@ -101,7 +101,7 @@ impl SqlLibrary{
         Ok((person_ids, rsc_path))
     }
 
-    pub fn movie_exist(&self, movie_id: u64) -> Result<bool, rusqlite::Error>{
+    pub fn movie_exist(&self, movie_id: u64) -> Result<bool, Error>{
         let mut stmt = self.conn.prepare(
             "SELECT original_title from Movies
              WHERE id = ?1",

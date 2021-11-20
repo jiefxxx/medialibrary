@@ -1,11 +1,11 @@
 use crate::rustmdb::model::Person;
-
+use super::Error;
 use super::SqlLibrary;
 
 
 impl SqlLibrary{
 
-    pub fn create_person(&mut self, person: &Person) -> Result<(Vec<u64>, Vec<String>), rusqlite::Error>{
+    pub fn create_person(&mut self, person: &Person) -> Result<(Vec<u64>, Vec<String>), Error>{
 
         let tx = self.conn.transaction()?;
 
@@ -47,7 +47,7 @@ impl SqlLibrary{
         Ok((person_ids, rsc_path))
     }
 
-    pub fn person_exist(&self, person_id: u64) -> Result<bool, rusqlite::Error>{
+    pub fn person_exist(&self, person_id: u64) -> Result<bool, Error>{
         let mut stmt = self.conn.prepare(
             "SELECT name from Persons
              WHERE id = ?1",

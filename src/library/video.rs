@@ -12,8 +12,6 @@ pub struct Video{
     #[pyo3(get)]
     pub media_type: u8,
     #[pyo3(get)]
-    pub media_id: Option<u64>,
-    #[pyo3(get)]
     pub bit_rate: u64,
     #[pyo3(get)]
     pub duration: u64,
@@ -41,7 +39,6 @@ impl Video{
             id: 0,
             path,
             media_type,
-            media_id: None,
             bit_rate: 0,
             duration: 0,
             size: 0,
@@ -84,7 +81,7 @@ impl Video{
                     "Text" => {
                         if let Ok(language) = track.getattr("language"){
                             if let Ok(extracted) = language.extract(){
-                                video.audios.push(extracted);
+                                video.subtitles.push(extracted);
                             }
                         }
                     }

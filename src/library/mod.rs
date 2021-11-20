@@ -1,5 +1,6 @@
 
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::database::SqlLibrary;
 
@@ -10,6 +11,7 @@ use pyo3::exceptions::PyReferenceError;
 mod update_db;
 pub mod video;
 
+use regex::Regex;
 use video::{Video, VideoResult};
 
 fn create_sql_param(kwargs: Option<&PyDict>) -> PyResult<HashMap<&str, Option<(String, String)>>>{
@@ -77,55 +79,90 @@ impl Library {
 
     pub fn create_video(&self, path: String, media_type: u8) -> PyResult<u64> {
         let video = Video::from_path(path, media_type)?;
-        let video_id = self.conn.create_video(video).unwrap();
+        let video_id = self.conn.create_video(video)?;
         Ok(video_id)
     }
 
     #[args(kwargs = "**")]
     pub fn get_videos(&self, kwargs: Option<&PyDict>) -> PyResult<Vec<VideoResult>>{
-        match self.conn.get_videos(create_sql_param(kwargs)?){
-            Ok(video) => Ok(video),
-            Err(e) => Err(PyReferenceError::new_err(format!("database error get videos {}", e))),
-        }
+        Ok(self.conn.get_videos(create_sql_param(kwargs)?)?)
     }
     
     pub fn get_video(&self, video_id: u64) -> PyResult<Option<Video>>{
-        match self.conn.get_video(video_id){
-            Ok(video) => Ok(video),
-            Err(e) => Err(PyReferenceError::new_err(format!("database error get video video_id: {} => {}", video_id, e))),
-        }
+        Ok(self.conn.get_video(video_id)?)
     }
 
     pub fn edit_movie(&mut self, video_id: u64, movie_id: u64) -> PyResult<()>{
-        match self.conn.get_video_media_type(video_id){
-            Ok(Some(0)) => (),
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error get video media type {}", e))),
-            Ok(Some(media_type)) => return Err(PyReferenceError::new_err(format!("edit movie error media type not 0 {}", media_type))),
-            Ok(None) => return Err(PyReferenceError::new_err(format!("media_type undefined ")))
+        match self.conn.get_video_media_type(video_id)?{
+            Some(0) => (),
+            Some(media_type) => return Err(Error::new(ErrorKind::MediaType,"mediatype error".to_string(),&format!("media type not movie {}", media_type)).into()),
+            None => return Err(Error::new(ErrorKind::MediaType, "mediatype error".to_string(),&format!("undefined ")).into())
         };
-        self.update_db_movie(movie_id)?;
+        self.create_movie(movie_id)?;
 
-        if let Err(e) = self.conn.edit_video_media_id(video_id, movie_id){
-            return Err(PyReferenceError::new_err(format!("database error edit video media id {}", e)))
-        }
+        self.conn.edit_video_media_id(video_id, movie_id)?;
         Ok(())
     }
 
     pub fn edit_tv(&mut self, video_id: u64, tv_id: u64, season: u64, episode: u64) -> PyResult<()>{
-        match self.conn.get_video_media_type(video_id){
-            Ok(Some(1)) => (),
-            Err(e) => return Err(PyReferenceError::new_err(format!("database error get video media type {}", e))),
-            Ok(Some(media_type)) => return Err(PyReferenceError::new_err(format!("edit movie error media type not 1 {}", media_type))),
-            Ok(None) => return Err(PyReferenceError::new_err(format!("media_type undefined ")))
+        match self.conn.get_video_media_type(video_id)?{
+            Some(1) => (),
+            Some(media_type) => return Err(Error::new(ErrorKind::MediaType,"mediatype error".to_string(),&format!("media type not tv {}", media_type)).into()),
+            None => return Err(Error::new(ErrorKind::MediaType, "mediatype error".to_string(),&format!("undefined ")).into())
         };
 
-        let episode_id = self.update_db_episode(tv_id, season, episode)?;
+        let episode_id = self.create_episode(tv_id, season, episode)?;
 
-        if let Err(e) = self.conn.edit_video_media_id(video_id, episode_id){
-            return Err(PyReferenceError::new_err(format!("database error edit video media id {}", e)))
-        }
+        self.conn.edit_video_media_id(video_id, episode_id)?;
 
         Ok(())
     }
 
+    #[staticmethod]
+    pub fn parse_tv(path: &str) -> PyResult<(String, u64, u64)>{
+        let re = Regex::new(r".*[/](.*)[.][sS](\d+)[eE](\d+)[.]?.*[.](.*)").unwrap();
+        for cap in re.captures_iter(path) {
+            return Ok((cap[1].to_string().replace(".", " "), cap[2].parse::<u64>()?, cap[3].parse::<u64>()?))
+        }
+        return Err(Error::new(ErrorKind::ParseName, "could not parse name".to_string(), &format!("tv path: {}", path)).into())
+    }
+
+    #[staticmethod]
+    pub fn parse_movie(path: &str) -> PyResult<(String, u64)>{
+        let re = Regex::new(r".*[/](.*)[.](\d{4})[.]?.*[.](.*)").unwrap();
+        for cap in re.captures_iter(path) {
+            return Ok((cap[1].to_string().replace(".", " "), cap[2].parse::<u64>()?))
+        }
+        return Err(Error::new(ErrorKind::ParseName, "could not parse name".to_string(), &format!("movie path: {}", path)).into())
+    }
+
+}
+
+#[derive(Debug)]
+pub enum ErrorKind{
+    ParseName,
+    MediaType
+}
+
+#[derive(Debug)]
+pub struct Error{
+    kind: ErrorKind,
+    description: String,
+    location: String,
+}
+
+impl Error{
+    pub fn new(kind: ErrorKind, description: String, location: &str) -> Error{
+        Error{
+            kind,
+            description,
+            location: location.to_string(), 
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Error: {:?} at {} {}", &self.kind, &self.location, &self.description)
+    }
 }
