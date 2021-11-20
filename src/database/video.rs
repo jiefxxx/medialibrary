@@ -192,7 +192,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn edit_video_path(&self, video_id: u64, path: &str) -> Result<(), Error>{
+    pub fn _edit_video_path(&self, video_id: u64, path: &str) -> Result<(), Error>{
         self.conn.execute(
             "UPDATE Videos SET path = ?1 WHERE id = ?2",
             &[
@@ -203,7 +203,7 @@ impl SqlLibrary{
     }
 
 
-    pub fn edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), Error>{
+    pub fn _edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), Error>{
         self.conn.execute(
             "INSERT OR REPLACE INTO LastTime (
                 video_id,

@@ -143,6 +143,36 @@ impl SqlLibrary{
             [],
         )?;
 
+        self.conn.execute(
+            "CREATE VIEW IF NOT EXISTS MoviesView
+                AS 
+                SELECT
+                    Movies.id as id,
+                    original_title,
+                    original_language,
+                    title,
+                    release_date,
+                    overview,
+                    popularity,
+                    poster_path,
+                    backdrop_path,
+                    vote_average,
+                    vote_count,
+                    tagline,
+                    status,
+                    adult,
+                    GROUP_CONCAT(MovieGenres.name) as genres,
+                    MAX(Videos.adding) as adding,
+                    GROUP_CONCAT(Videos.id) as video_ids
+                FROM
+                    Movies
+                INNER JOIN Videos ON Movies.id == Videos.media_id AND Videos.media_type == 0
+                LEFT OUTER JOIN MovieGenres ON Movies.id = MovieGenres.movie_id
+
+                GROUP BY Movies.id",
+                []
+        )?;
+
         // Tv Part
 
         self.conn.execute(
