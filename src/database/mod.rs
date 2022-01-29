@@ -131,7 +131,7 @@ impl SqlLibrary{
                 tagline TEXT,
                 status TEXT,
                 adult BOOL,
-                updated: TEXT)",
+                updated TEXT)",
             [],
         )?;
 
