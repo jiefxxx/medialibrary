@@ -37,7 +37,7 @@ impl Library {
         Library{ }
     }
 
-    pub fn new_video(&self,user: String,  path: String, media_type: u8) -> PyResult<Video> {
+    pub fn new_video(&self, user: String,  path: String, media_type: u8) -> PyResult<Video> {
         Ok(self.video(user.clone(), DATABASE.create_video(Video::from_path(user, path, media_type)?)?)?.unwrap())
     }
 

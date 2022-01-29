@@ -26,6 +26,7 @@ impl SqlLibrary{
     pub fn connect(&self, path: &str){
         let mut conn = self.conn.lock().unwrap();
         *conn = Some(Connection::open(path).unwrap());
+        drop(conn);
         self.init_db().unwrap();
         
     }
