@@ -1,139 +1,76 @@
-
-use std::collections::HashMap;
 use std::fmt;
+use std::sync::{Arc, Mutex};
 
-use crate::database::SqlLibrary;
+use crate::database::DATABASE;
 
-use pyo3::types::{PyFloat, PyLong, PyTuple, PyUnicode};
-use pyo3::{prelude::*, types::PyDict};
-use pyo3::exceptions::PyReferenceError;
+use pyo3::prelude::*;
+
 
 mod update_db;
 pub mod video;
+pub mod movie;
+pub mod tv;
+pub mod cast;
+pub mod keyword;
+pub mod trailer;
 
-use regex::Regex;
-use video::{Video, VideoResult};
+use video::Video;
 
-fn create_sql_param(kwargs: Option<&PyDict>) -> PyResult<HashMap<&str, Option<(String, String)>>>{
-    let mut map = HashMap::new();
-    let kwargs = match kwargs {
-        Some(kwargs) => kwargs,
-        None => return Ok(map),
-    };
-    
-    for key in kwargs.keys(){
-        let item = kwargs.get_item(key).unwrap();
-        let value;
-        if item.is_none(){
-            value = None;
-        }
-        else if item.is_instance::<PyTuple>()?{
-            let tuple: &PyTuple = item.extract()?;
-            let data = tuple.get_item(1)?;
-            if data.is_instance::<PyUnicode>()?{
-                value = Some((tuple.get_item(0)?.extract()?, data.extract()?));
-            }
-            else if data.is_instance::<PyFloat>()?{
-                value = Some((tuple.get_item(0)?.extract()?, data.extract::<f64>()?.to_string()));
-            }
-            else if data.is_instance::<PyLong>()?{
-                value = Some((tuple.get_item(0)?.extract()?, data.extract::<i64>()?.to_string()));
-            }
-            else{
-                return Err(PyReferenceError::new_err(format!("args must be (string,[int, float or string])")));
-            }   
-        }
-        else if item.is_instance::<PyUnicode>()?{
-            value = Some(("=".to_string(), item.extract()?));
-        }
-        else if item.is_instance::<PyFloat>()?{
-            value = Some(("=".to_string(), item.extract::<f64>()?.to_string()));
-        }
-        else if item.is_instance::<PyLong>()?{
-            value = Some(("=".to_string(), item.extract::<i64>()?.to_string()));
-        }
-        else{
-            return Err(PyReferenceError::new_err(format!("args must be (string,[int, float, string]), int, float, string or None")));
-        }
-        map.insert(key.extract()?, value);
-    }
+use self::movie::{Movie, MovieSearch};
+use self::tv::{Tv, Season, Episode, TvSearch};
+use self::video::VideoSearch;
 
-    Ok(map)
-    
+lazy_static! {
+    pub static ref RSCPATH: Arc<Mutex<String>> = Arc::new(Mutex::new("".to_string()));
 }
 
 #[pyclass]
 pub struct Library{
-    conn: SqlLibrary,
-    rsc_path: String,
 }
 
 #[pymethods]
 impl Library {
     #[new]
     pub fn new(database_path: &str, rsc_path: String) -> Self {
-        let conn = SqlLibrary::new(database_path).unwrap();
-        conn.init_db().unwrap();
-        Library{ conn, rsc_path}
+        *RSCPATH.lock().unwrap() = rsc_path.to_string();
+        DATABASE.connect(database_path);
+        Library{ }
     }
 
-    pub fn create_video(&self, path: String, media_type: u8) -> PyResult<u64> {
-        let video = Video::from_path(path, media_type)?;
-        let video_id = self.conn.create_video(video)?;
-        Ok(video_id)
+    pub fn new_video(&self,user: String,  path: String, media_type: u8) -> PyResult<Video> {
+        Ok(self.video(user.clone(), DATABASE.create_video(Video::from_path(user, path, media_type)?)?)?.unwrap())
     }
 
-    #[args(kwargs = "**")]
-    pub fn get_videos(&self, kwargs: Option<&PyDict>) -> PyResult<Vec<VideoResult>>{
-        Ok(self.conn.get_videos(create_sql_param(kwargs)?)?)
+    pub fn videos(&self, user: String) -> VideoSearch{
+        VideoSearch::new(user)
     }
     
-    pub fn get_video(&self, video_id: u64) -> PyResult<Option<Video>>{
-        Ok(self.conn.get_video(video_id)?)
+    pub fn video(&self, user: String, video_id: u64) -> PyResult<Option<Video>>{
+        Ok(DATABASE.get_video(&user, video_id)?)
     }
 
-    pub fn edit_movie(&mut self, video_id: u64, movie_id: u64) -> PyResult<()>{
-        match self.conn.get_video_media_type(video_id)?{
-            Some(0) => (),
-            Some(media_type) => return Err(Error::new(ErrorKind::MediaType,"mediatype error".to_string(),&format!("media type not movie {}", media_type)).into()),
-            None => return Err(Error::new(ErrorKind::MediaType, "mediatype error".to_string(),&format!("undefined ")).into())
-        };
-        self.create_movie(movie_id)?;
-
-        self.conn.edit_video_media_id(video_id, movie_id)?;
-        Ok(())
+    pub fn movies(&self, user: String) -> MovieSearch{
+        MovieSearch::new(&user)
     }
 
-    pub fn edit_tv(&mut self, video_id: u64, tv_id: u64, season: u64, episode: u64) -> PyResult<()>{
-        match self.conn.get_video_media_type(video_id)?{
-            Some(1) => (),
-            Some(media_type) => return Err(Error::new(ErrorKind::MediaType,"mediatype error".to_string(),&format!("media type not tv {}", media_type)).into()),
-            None => return Err(Error::new(ErrorKind::MediaType, "mediatype error".to_string(),&format!("undefined ")).into())
-        };
-
-        let episode_id = self.create_episode(tv_id, season, episode)?;
-
-        self.conn.edit_video_media_id(video_id, episode_id)?;
-
-        Ok(())
+    pub fn movie(&self, user:String, movie_id: u64) -> PyResult<Option<Movie>>{
+        Ok(DATABASE.get_movie(&user, movie_id)?)
     }
 
-    #[staticmethod]
-    pub fn parse_tv(path: &str) -> PyResult<(String, u64, u64)>{
-        let re = Regex::new(r".*[/](.*)[.][sS](\d+)[eE](\d+)[.]?.*[.](.*)").unwrap();
-        for cap in re.captures_iter(path) {
-            return Ok((cap[1].to_string().replace(".", " "), cap[2].parse::<u64>()?, cap[3].parse::<u64>()?))
-        }
-        return Err(Error::new(ErrorKind::ParseName, "could not parse name".to_string(), &format!("tv path: {}", path)).into())
+    pub fn tvs(&self, user: String) -> TvSearch{
+        TvSearch::new(&user)
     }
 
-    #[staticmethod]
-    pub fn parse_movie(path: &str) -> PyResult<(String, u64)>{
-        let re = Regex::new(r".*[/](.*)[.](\d{4})[.]?.*[.](.*)").unwrap();
-        for cap in re.captures_iter(path) {
-            return Ok((cap[1].to_string().replace(".", " "), cap[2].parse::<u64>()?))
-        }
-        return Err(Error::new(ErrorKind::ParseName, "could not parse name".to_string(), &format!("movie path: {}", path)).into())
+    pub fn tv(&self, user: String, tv_id: u64) -> PyResult<Option<Tv>>{
+        Ok(DATABASE.get_tv(&user, tv_id)?)
+    }
+
+    pub fn tv_season(&self, user: String, tv_id: u64, season_number: u64) -> PyResult<Option<Season>>{
+        Ok(DATABASE.get_season(&user, tv_id, season_number)?)
+    }
+
+    pub fn tv_episode(&self, user:String, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<Option<Episode>>{
+        Ok(DATABASE.get_episode(&user, tv_id, season_number, episode_number)?)
     }
 
 }

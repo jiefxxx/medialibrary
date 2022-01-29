@@ -41,7 +41,7 @@ pub struct SearchMovie {
     pub original_title: String,
     pub original_language: String,
     pub overview: Option<String>,
-    pub release_date: String,
+    pub release_date: Option<String>,
     pub genre_ids: Vec<u16>,
     pub poster_path: Option<String>,
     pub backdrop_path: Option<String>,
@@ -113,6 +113,39 @@ pub struct Credits {
     pub cast: Vec<Cast>,
     pub crew: Vec<Crew>,
 }
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct Keyword {
+    pub id: u64,
+    pub name: String,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct KeywordsMovie {
+    pub keywords: Vec<Keyword>,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct KeywordsTv {
+    pub results: Vec<Keyword>,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct Video {
+    pub iso_639_1: String,
+    pub iso_3166_1: String,
+    pub name: String,
+    pub key: String,
+    pub published_at: String,
+    pub site: String,
+    pub size: u64,
+    pub _type: Option<String>,
+    pub id: String,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+pub struct Videos {
+    pub results: Vec<Video>,
+}
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Movie {
@@ -137,6 +170,8 @@ pub struct Movie {
     pub production_countries: Vec<ProductionCountrie>,
     pub spoken_languages: Vec<Language>,
     pub credits: Credits,
+    pub videos: Videos,
+    pub keywords: KeywordsMovie,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -214,6 +249,8 @@ pub struct Tv {
     pub last_episode_to_air: Option<LastEpisodeToAir>,
     pub networks: Vec<Network>,
     pub seasons: Vec<Season>,
+    pub videos: Videos,
+    pub keywords: KeywordsTv,
 }
 
 

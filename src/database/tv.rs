@@ -1,12 +1,27 @@
-use crate::rustmdb::model::{Tv, TvEpisode};
+use std::collections::HashMap;
+
+use crate::database::parse_watched;
+use crate::library::cast::Cast;
+use crate::library::cast::Crew;
+use crate::library::keyword::Keyword;
+use crate::library::trailer::Trailer;
+use crate::library::tv::Episode;
+use crate::library::tv::Tv;
+use crate::library::tv::TvResult;
+use crate::library::tv::Season;
+use crate::rustmdb;
 use super::Error;
 use super::SqlLibrary;
+use super::generate_sql;
+use super::parse_concat;
 
 
 impl SqlLibrary{
-    pub fn create_tv(&mut self ,tv: &Tv) -> Result<(Vec<u64>, Vec<String>), Error>{
+    pub fn create_tv(&self ,tv: &rustmdb::model::Tv) -> Result<(Vec<u64>, Vec<String>), Error>{
 
-        let tx = self.conn.transaction()?;
+        let mut m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_mut().unwrap();
+        let tx = conn.transaction()?;
 
         let mut person_ids = Vec::new();
         let mut rsc_path = Vec::new();
@@ -28,7 +43,8 @@ impl SqlLibrary{
                 in_production, 
                 number_of_episodes,
                 number_of_seasons,
-                episode_run_time) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                episode_run_time,
+                updated) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, datetime('now'))",
 
             &[
             &tv.id.to_string(),
@@ -60,7 +76,8 @@ impl SqlLibrary{
                     title,
                     overview,
                     poster_path,
-                    release_date) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    release_date,
+                    updated) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'))",
     
                 &[
                 &season.id.to_string(),
@@ -105,7 +122,7 @@ impl SqlLibrary{
         }
 
         for cast in &tv.credits.cast{
-            if  cast.order > 15{
+            if  cast.order > 25{
                 continue
             }
     
@@ -126,15 +143,94 @@ impl SqlLibrary{
             person_ids.push(cast.id)
         }
 
+        for crew in &tv.credits.crew{
+            if !(crew.job == "Screenplay" ||  crew.job == "Director" || crew.job == "Producer"){
+                continue
+            }
+    
+            tx.execute(
+                "INSERT OR REPLACE INTO TvCrews (
+                    person_id,
+                    tv_id,
+                    job) values (?1, ?2, ?3)",
+    
+                &[
+                &crew.id.to_string(),
+                &tv.id.to_string(), 
+                &crew.job.to_string()],
+            )?;
+
+            person_ids.push(crew.id)
+        }
+
+        for crew in &tv.created_by{
+    
+            tx.execute(
+                "INSERT OR REPLACE INTO TvCrews (
+                    person_id,
+                    tv_id,
+                    job) values (?1, ?2, ?3)",
+    
+                &[
+                &crew.id.to_string(),
+                &tv.id.to_string(), 
+                "Creator"],
+            )?;
+
+            person_ids.push(crew.id)
+        }
+
+        for video in &tv.videos.results{
+            if video.site != "YouTube"{
+                continue
+            }
+            tx.execute(
+                "INSERT OR REPLACE INTO TvTrailers (
+                    tv_id,
+                    name,
+                    youtube_id) values (?1, ?2, ?3)",
+    
+                &[
+                &tv.id.to_string(),
+                &video.name,
+                &video.key],
+            )?;
+        }
+
+        for keyword in &tv.keywords.results{
+
+            tx.execute(
+                "INSERT OR REPLACE INTO TvKeywordLinks (
+                    keyword_id,
+                    tv_id) values (?1, ?2)",
+    
+                &[
+                &keyword.id.to_string(),
+                &tv.id.to_string()],
+            )?;
+    
+            tx.execute(
+                "INSERT OR IGNORE INTO Keywords (
+                    id,
+                    name) values (?1, ?2)",
+    
+                &[
+                &keyword.id.to_string(),
+                &keyword.name],
+            )?;
+        }
+
         tx.commit()?;
 
         Ok((person_ids, rsc_path))
     }
 
-    pub fn create_episode(&mut self, tv_id: u64, episode: &TvEpisode) -> Result<(Vec<u64>, Vec<String>), Error>{
+    pub fn create_episode(&self, tv_id: u64, episode: &rustmdb::model::TvEpisode) -> Result<(Vec<u64>, Vec<String>), Error>{
         let season_id = self.get_season_id(tv_id, episode.season_number).unwrap().unwrap();
         
-        let tx = self.conn.transaction()?;
+        let mut m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_mut().unwrap();
+        let tx = conn.transaction()?;
 
         let mut person_ids = Vec::new();
         let rsc_path = Vec::new();
@@ -150,7 +246,8 @@ impl SqlLibrary{
                 title,
                 overview,
                 vote_average,
-                vote_count) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                vote_count,
+                updated) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))",
 
             &[
             &episode.id.to_string(),
@@ -187,6 +284,26 @@ impl SqlLibrary{
             person_ids.push(cast.id)
         }
 
+        for crew in &episode.credits.crew{
+            if !(crew.job == "Screenplay" ||  crew.job == "Director" || crew.job == "Producer"){
+                continue
+            }
+    
+            tx.execute(
+                "INSERT OR REPLACE INTO EpisodeCrews (
+                    person_id,
+                    episode_id,
+                    job) values (?1, ?2, ?3)",
+    
+                &[
+                &crew.id.to_string(),
+                &episode.id.to_string(), 
+                &crew.job.to_string()],
+            )?;
+
+            person_ids.push(crew.id)
+        }
+
         tx.commit()?;
 
         Ok((person_ids, rsc_path))
@@ -194,7 +311,9 @@ impl SqlLibrary{
 
     pub fn get_season_id(&self, tv_id: u64, season_number: u64) -> Result<Option<u64>, Error> {
         // println!("get season id {} {}", &tv_id, &season_number);
-        let mut stmt = self.conn.prepare(
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(
             "SELECT id from Seasons
              WHERE tv_id = ?1 and season_number = ?2",
         )?;
@@ -206,32 +325,387 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn tv_exist(&self, tv_id: u64) -> Result<bool, Error>{
-        let mut stmt = self.conn.prepare(
-            "SELECT title from Tvs
-             WHERE id = ?1",
-        )?;
-    
-        let rows = stmt.query_map(&[&tv_id.to_string()], |row| row.get(0))?;
+    pub fn get_tv(&self, user: &String, tv_id: u64) -> Result<Option<Tv>, Error>{
+        println!("get_tv {:?}", &tv_id);
+        let sql = "SELECT
+                            TvsView.id, 
+                            TvsView.original_title, 
+                            TvsView.original_language, 
+                            TvsView.title, 
+                            TvsView.release_date, 
+                            TvsView.overview, 
+                            TvsView.popularity, 
+                            TvsView.poster_path, 
+                            TvsView.backdrop_path, 
+                            TvsView.vote_average, 
+                            TvsView.vote_count, 
+                            TvsView.status, 
+                            TvsView.genres, 
+                            TvsView.number_of_episodes, 
+                            TvsView.number_of_seasons, 
+                            TvsView.episode_run_time, 
+                            TvsView.adding,
+                            MIN(EpisodesUserWatched.watched),
+                            TvsView.updated
+                        FROM TvsView
+                        LEFT OUTER JOIN Episodes ON TvsView.id = Episodes.tv_id
+                        LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
+                        WHERE id = ?1";
+
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(&[user, &tv_id.to_string()], |row| {
+            Ok(Tv{ 
+                user: user.clone(),
+                id: row.get(0)?, 
+                original_title: row.get(1)?, 
+                original_language: row.get(2)?, 
+                title: row.get(3)?, 
+                release_date: row.get(4)?, 
+                overview: row.get(5)?, 
+                popularity: row.get(6)?, 
+                poster_path: row.get(7)?, 
+                backdrop_path: row.get(8)?, 
+                vote_average: row.get(9)?, 
+                vote_count: row.get(10)?, 
+                status: row.get(11)?, 
+                genres: parse_concat(row.get(12)?).unwrap_or_default(), 
+                number_of_episodes: row.get(13)?, 
+                number_of_seasons: row.get(14)?, 
+                episode_run_time: row.get(15)?, 
+                adding: row.get(16)?,
+                watched: parse_watched(row.get(17)?),
+                updated: row.get(18)?,
+                seasons: Vec::new(),
+                cast: Vec::new(),
+                crew: Vec::new(),
+                trailer: Vec::new(),
+                keyword: Vec::new(),
+            })
+        })?;
+
         for row in rows{
-            let _unused: String = row?;
-            return Ok(true)
+            return Ok(Some(row?));
         }
-        Ok(false)
+
+        Ok(None)
     }
 
-    pub fn episode_exist(&self, tv_id: u64, season: u64, episode: u64) -> Result<Option<u64>, Error>{
-        let mut stmt = self.conn.prepare(
-            "SELECT id from Episodes
-             WHERE tv_id = ?1 AND season_number = ?2 AND episode_number = ?3",
-        )?;
+    pub fn get_tvs(&self,user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<TvResult>, Error>{
+        let (sql, param) = generate_sql("SELECT 
+                                                    TvsView.id,
+                                                    TvsView.title,
+                                                    TvsView.release_date,
+                                                    TvsView.poster_path,
+                                                    TvsView.vote_average,
+                                                    TvsView.genres,
+                                                    TvsView.adding,
+                                                    MIN(EpisodesUserWatched.watched)
+                                                FROM TvsView
+                                                LEFT OUTER JOIN Episodes ON TvsView.id = Episodes.tv_id
+                                                LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
+                                                ", parameters, Some(user));
+
+        // println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
     
-        let rows = stmt.query_map(&[&tv_id.to_string(), 
-                                                                    &season.to_string(), 
-                                                                    &episode.to_string()], |row| row.get(0))?;
+        let rows = stmt.query_map(param.as_slice(), |row| {
+            Ok(TvResult{
+                user: user.clone(),
+                id: row.get(0)?,
+                title: row.get(1)?,
+                release_date: row.get(2)?,
+                poster_path: row.get(3)?,
+                vote_average: row.get(4)?,
+                genres: parse_concat(row.get(5)?).unwrap_or_default(),
+                adding: row.get(6)?,
+                watched: parse_watched(row.get(7)?),
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_seasons(&self, user: &String, tv_id: u64) -> Result<Vec<Season>, Error>{
+        let sql = "SELECT
+                            SeasonsView.season_number,
+                            SeasonsView.episode_count,
+                            SeasonsView.title,
+                            SeasonsView.overview,
+                            SeasonsView.poster_path,
+                            SeasonsView.release_date,
+                            SeasonsView.tv_id,
+                            MIN(EpisodesUserWatched.watched),
+                            SeasonsView.updated
+                        FROM SeasonsView
+                        LEFT OUTER JOIN Episodes ON SeasonsView.tv_id = Episodes.tv_id AND SeasonsView.season_number = Episodes.season_number
+                        LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
+                        WHERE tv_id = ?2";
+        // println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[user, &tv_id.to_string()], |row| {
+            Ok(Season{
+                user: user.clone(),
+                season_number: row.get(0)?,
+                episode_count: row.get(1)?,
+                title: row.get(2)?,
+                overview: row.get(3)?,
+                poster_path: row.get(4)?,
+                release_date: row.get(5)?,
+                tv_id: row.get(6)?,
+                watched: parse_watched(row.get(7)?),
+                updated: row.get(8)?,
+                tv: None,
+                episodes: Vec::new(),
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_episodes(&self, user: &String, tv_id: u64, season_number: u64) -> Result<Vec<Episode>, Error>{
+        let sql = "SELECT
+                            EpisodesView.season_number,
+                            EpisodesView.episode_number,
+                            EpisodesView.release_date,
+                            EpisodesView.title,
+                            EpisodesView.overview,
+                            EpisodesView.vote_average,
+                            EpisodesView.vote_count,
+                            EpisodesView.id,
+                            EpisodesView.tv_id,
+                            EpisodesUserWatched.watched,
+                            EpisodesView.updated
+                        FROM EpisodesView
+                        EFT OUTER JOIN EpisodesUserWatched ON EpisodesView.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
+                        WHERE tv_id = ?2 AND season_number = ?3";
+        println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[user, &tv_id.to_string(), &season_number.to_string()], |row| {
+            Ok(Episode{
+                user: user.clone(),
+                season_number,
+                episode_number: row.get(1)?,
+                release_date: row.get(2)?,
+                title: row.get(3)?,
+                overview: row.get(4)?,
+                vote_average: row.get(5)?,
+                vote_count: row.get(6)?,
+                id: row.get(7)?,
+                tv_id: row.get(8)?,
+                watched: parse_watched(row.get(9)?),
+                updated: row.get(10)?,
+                tv: None,
+                season: None,
+                video: Vec::new()
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_episode_by_id(&self, user: &String, episode_id: u64) -> Result<Option<Episode>, Error>{
+        let sql = "SELECT
+                            season_number,
+                            episode_number,
+                            release_date,
+                            title,
+                            overview,
+                            vote_average,
+                            vote_count,
+                            id,
+                            tv_id,
+                            season_number
+                        FROM EpisodesView
+                        WHERE id = ?1";
+        println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&episode_id.to_string(),], |row| {
+            Ok(Episode{
+                user: user.clone(),
+                season_number: row.get(0)?,
+                episode_number: row.get(1)?,
+                release_date: row.get(2)?,
+                title: row.get(3)?,
+                overview: row.get(4)?,
+                vote_average: row.get(5)?,
+                vote_count: row.get(6)?,
+                id: row.get(7)?,
+                tv_id: row.get(8)?,
+                watched: parse_watched(row.get(9)?),
+                updated: row.get(10)?,
+                tv: None,
+                season: None,
+                video: Vec::new()
+            })
+            
+        })?;
+
         for row in rows{
             return Ok(Some(row?))
         }
+
         Ok(None)
+    }
+
+    pub fn get_season(&self, user: &String, tv_id: u64, season_number: u64) -> Result<Option<Season>, Error>{
+        for season in self.get_seasons(user, tv_id)? {
+            if season.season_number == season_number{
+                return Ok(Some(season))
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn get_episode(&self, user: &String, tv_id: u64, season_number: u64, episode_number: u64) -> Result<Option<Episode>, Error>{
+        for episode in self.get_episodes(user, tv_id, season_number)? {
+            if episode.episode_number == episode_number{
+                return Ok(Some(episode))
+            }
+        }
+        Ok(None)
+    }
+    
+
+    pub fn get_tv_cast(&self, tv_id: u64) -> Result<Vec<Cast>, Error>{
+        let sql = "SELECT
+                            id,
+                            character,
+                            ord,
+                            name,
+                            profile_path
+                        FROM TvCastsView
+                        WHERE tv_id = ?1";
+        println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&tv_id.to_string()], |row| {
+            Ok(Cast{
+                id: row.get(0)?,
+                character: row.get(1)?,
+                ord: row.get(2)?,
+                name: row.get(3)?,
+                profile_path: row.get(4)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_tv_crew(&self, tv_id: u64) -> Result<Vec<Crew>, Error>{
+        let sql = "SELECT
+                            id,
+                            job,
+                            name,
+                            profile_path
+                        FROM TvCrewsView
+                        WHERE tv_id = ?1";
+        println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&tv_id.to_string()], |row| {
+            Ok(Crew{
+                id: row.get(0)?,
+                job: row.get(1)?,
+                name: row.get(2)?,
+                profile_path: row.get(3)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_tv_trailer(&self, tv_id: u64) -> Result<Vec<Trailer>, Error>{
+        let sql = "SELECT
+                            name,
+                            youtube_id
+                        FROM TvTrailers
+                        WHERE tv_id = ?";
+        // println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&tv_id.to_string()], |row| {
+            Ok(Trailer{
+                name: row.get(0)?,
+                youtube_id: row.get(1)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_tv_keywords(&self, tv_id: u64) -> Result<Vec<Keyword>, Error>{
+        let sql = "SELECT
+                            name,
+                            id
+                        FROM TvKeywordLinks
+                        INNER JOIN Keywords ON TvKeywordLinks.keyword_id = Keywords.id
+                        WHERE tv_id = ?";
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&tv_id.to_string()], |row| {
+            Ok(Keyword{
+                name: row.get(0)?,
+                id: row.get(1)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
     }
 }

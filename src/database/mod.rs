@@ -1,29 +1,41 @@
-use std::fmt;
+use std::{fmt, collections::HashMap, str::FromStr, sync::{Mutex, Arc}};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, ToSql};
 
 mod video;
 mod movie;
 mod tv;
 mod person;
 
+lazy_static! {
+    pub static ref DATABASE: Arc<SqlLibrary> = Arc::new(SqlLibrary::new());
+}
+
+#[derive(Debug)]
 pub struct SqlLibrary{
-    conn: Connection
+    conn: Mutex<Option<Connection>>,
 }
 
 impl SqlLibrary{
-    pub fn new(path: &str) ->  Result<SqlLibrary, rusqlite::Error>{
-        Ok(
-            SqlLibrary{
-                conn: Connection::open(path)?
-            }
-        )
+    pub fn new() ->  SqlLibrary{
+        SqlLibrary{
+            conn: Mutex::new(None),
+        }
+    }
+
+    pub fn connect(&self, path: &str){
+        let mut conn = self.conn.lock().unwrap();
+        *conn = Some(Connection::open(path).unwrap());
+        self.init_db().unwrap();
+        
     }
 
     //video part
 
-    pub fn init_db(&self) -> Result<(), rusqlite::Error>{
-        self.conn.execute(
+    fn init_db(&self) -> Result<(), rusqlite::Error>{
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Videos (
                 id INTEGER PRIMARY KEY NOT NULL,
                 path TEXT NOT NULL UNIQUE,
@@ -39,16 +51,16 @@ impl SqlLibrary{
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS LastTime (
                 video_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
+                user_name INTEGER NOT NULL,
                 last_time INTEGER,
                 unique(video_id, user_id))",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Audios (
                 video_id INTEGER NOT NULL,
                 language TEXT,
@@ -56,7 +68,7 @@ impl SqlLibrary{
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Subtitles (
                 video_id INTEGER NOT NULL,
                 language TEXT,
@@ -64,8 +76,9 @@ impl SqlLibrary{
             [],
         )?;
 
-        self.conn.execute(
-            "CREATE VIEW IF NOT EXISTS VideosView
+        conn.execute("DROP VIEW IF EXISTS VideosView",[])?;
+        conn.execute(
+            "CREATE VIEW VideosView
                 AS 
                 SELECT
                     Videos.id as id,
@@ -77,6 +90,8 @@ impl SqlLibrary{
                     codec,
                     width,
                     height,
+                    Movies.id as m_id,
+                    Tvs.id as t_id,
                     Movies.title as m_title,
                     Tvs.title as t_title,
                     episode_number,
@@ -99,7 +114,7 @@ impl SqlLibrary{
 
         // Movie Part
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Movies (
                 id INTEGER PRIMARY KEY NOT NULL,
                 original_title TEXT,
@@ -114,18 +129,19 @@ impl SqlLibrary{
                 vote_count INTEGER,
                 tagline TEXT,
                 status TEXT,
-                adult BOOL)",
+                adult BOOL,
+                updated: TEXT)",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS MovieGenres (
                 id INTEGER PRIMARY KEY NOT NULL,
                 name TEXT)",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS MovieGenreLinks (
                 movie_id INTEGER NOT NULL,
                 genre_id INTEGER NOT NULL,
@@ -133,7 +149,24 @@ impl SqlLibrary{
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS MovieKeywordLinks (
+                movie_id INTEGER NOT NULL,
+                keyword_id INTEGER NOT NULL,
+                unique(movie_id,keyword_id))",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS MovieTrailers (
+                movie_id INTEGER NOT NULL,
+                name TEXT,
+                youtube_id TEXT,
+                unique(movie_id,youtube_id))",
+            [],
+        )?;
+
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS MovieCasts (
                 movie_id INTEGER NOT NULL,
                 person_id TEXT,
@@ -142,9 +175,28 @@ impl SqlLibrary{
                 unique(movie_id,person_id,character))",
             [],
         )?;
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS MovieCrews (
+                movie_id INTEGER NOT NULL,
+                person_id TEXT,
+                job TEXT,
+                unique(movie_id,person_id,job))",
+            [],
+        )?;
 
-        self.conn.execute(
-            "CREATE VIEW IF NOT EXISTS MoviesView
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS MovieUserWatched (
+                movie_id INTEGER NOT NULL,
+                user_name TEXT,
+                watched INTEGER,
+                vote_user FLOAT,
+                unique(movie_id,user_name))",
+            [],
+        )?;
+
+        conn.execute("DROP VIEW IF EXISTS MoviesView",[])?;
+        conn.execute(
+            "CREATE VIEW MoviesView
                 AS 
                 SELECT
                     Movies.id as id,
@@ -160,22 +212,60 @@ impl SqlLibrary{
                     vote_count,
                     tagline,
                     status,
-                    adult,
-                    GROUP_CONCAT(MovieGenres.name) as genres,
-                    MAX(Videos.adding) as adding,
-                    GROUP_CONCAT(Videos.id) as video_ids
+                    updated,
+                    GROUP_CONCAT(DISTINCT MovieGenres.name) as genres,
+                    MAX(Videos.adding) as adding
                 FROM
                     Movies
-                INNER JOIN Videos ON Movies.id == Videos.media_id AND Videos.media_type == 0
-                LEFT OUTER JOIN MovieGenres ON Movies.id = MovieGenres.movie_id
+                INNER JOIN Videos ON Movies.id = Videos.media_id AND Videos.media_type = 0
+                LEFT OUTER JOIN MovieGenreLinks ON Movies.id = MovieGenreLinks.movie_id
+                LEFT OUTER JOIN MovieGenres ON MovieGenreLinks.genre_id = MovieGenres.id
+                 
 
                 GROUP BY Movies.id",
                 []
         )?;
 
+        conn.execute("DROP VIEW IF EXISTS MovieCastsView",[])?;
+        conn.execute(
+            "CREATE VIEW MovieCastsView
+                AS 
+                SELECT
+                    id,
+                    character,
+                    movie_id,
+                    ord,
+                    name,
+                    profile_path
+                FROM
+                    MovieCasts
+                LEFT OUTER JOIN Persons ON MovieCasts.person_id = Persons.id
+
+                ",
+                []
+        )?;
+
+        conn.execute("DROP VIEW IF EXISTS MovieCrewsView",[])?;
+        conn.execute(
+            "CREATE VIEW MovieCrewsView
+                AS 
+                SELECT
+                    id,
+                    job,
+                    movie_id,
+                    name,
+                    profile_path
+                FROM
+                    MovieCrews
+                LEFT OUTER JOIN Persons ON MovieCrews.person_id = Persons.id
+
+                ",
+                []
+        )?;
+
         // Tv Part
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Tvs (
                 id INTEGER PRIMARY KEY NOT NULL,
                 original_title TEXT,
@@ -192,18 +282,19 @@ impl SqlLibrary{
                 in_production BOOL, 
                 number_of_episodes INTEGER,
                 number_of_seasons INTEGER,
-                episode_run_time INTEGER)",
+                episode_run_time INTEGER,
+                updated TEXT)",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS TvGenres (
                 id INTEGER PRIMARY KEY NOT NULL,
                 name TEXT)",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS TvGenreLinks (
                 tv_id INTEGER NOT NULL,
                 genre_id INTEGER NOT NULL,
@@ -211,7 +302,24 @@ impl SqlLibrary{
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS TvKeywordLinks (
+                tv_id INTEGER NOT NULL,
+                keyword_id INTEGER NOT NULL,
+                unique(tv_id,keyword_id))",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS TvTrailers (
+                tv_id INTEGER NOT NULL,
+                name TEXT,
+                youtube_id TEXT,
+                unique(tv_id,youtube_id))",
+            [],
+        )?;
+
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS TvCasts (
                 tv_id INTEGER NOT NULL,
                 person_id TEXT,
@@ -221,7 +329,16 @@ impl SqlLibrary{
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS TvCrews (
+                tv_id INTEGER NOT NULL,
+                person_id TEXT,
+                job TEXT,
+                unique(tv_id, person_id, job))",
+            [],
+        )?;
+
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Seasons (
                 id INTEGER PRIMARY KEY NOT NULL,
                 tv_id INTEGER NOT NULL,
@@ -230,11 +347,12 @@ impl SqlLibrary{
                 title TEXT,
                 overview TEXT,
                 poster_path TEXT,
-                release_date TEXT)",
+                release_date TEXT,
+                updated TEXT)",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Episodes (
                 id INTEGER PRIMARY KEY NOT NULL,
                 season_id INTEGER NOT NULL,
@@ -245,11 +363,12 @@ impl SqlLibrary{
                 title TEXT,
                 overview TEXT,
                 vote_average FLOAT,
-                vote_count INTEGER)",
+                vote_count INTEGER,
+                updated TEXT)",
             [],
         )?;
 
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS EpisodeCasts (
                 episode_id INTEGER NOT NULL,
                 person_id INTEGER NOT NULL,
@@ -259,9 +378,143 @@ impl SqlLibrary{
             [],
         )?;
 
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS EpisodeCrews (
+                episode_id INTEGER NOT NULL,
+                person_id INTEGER NOT NULL,
+                job TEXT,
+                unique(episode_id,person_id,job))",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS EpisodesUserWatched (
+                episode_id INTEGER NOT NULL,
+                user_name TEXT,
+                watched INTEGER,
+                vote_user FLOAT,
+                unique(episode_id,user_name))",
+            [],
+        )?;
+
+        conn.execute("DROP VIEW IF EXISTS TvsView",[])?;
+        conn.execute(
+            "CREATE VIEW IF NOT EXISTS TvsView
+                AS 
+                SELECT
+                    Tvs.id as id,
+                    Tvs.original_title as original_title,
+                    original_language,
+                    Tvs.title as title,
+                    Tvs.release_date as release_date,
+                    Tvs.overview as overview,
+                    popularity,
+                    poster_path,
+                    backdrop_path,
+                    status,
+                    Tvs.vote_average as vote_average,
+                    Tvs.vote_count as vote_count,
+                    number_of_episodes,
+                    number_of_seasons,
+                    episode_run_time,
+                    Tvs.updated as updated,
+                    GROUP_CONCAT(DISTINCT TvGenres.name) as genres,
+                    MAX(Videos.adding) as adding
+                FROM
+                    Tvs
+                LEFT OUTER JOIN TvGenreLinks ON Tvs.id = TvGenreLinks.tv_id
+                LEFT OUTER JOIN TvGenres ON TvGenreLinks.genre_id = TvGenres.id
+                LEFT OUTER JOIN Episodes ON Tvs.id = Episodes.tv_id
+                INNER JOIN Videos ON Videos.media_id = Episodes.id AND Videos.media_type = 1
+
+                GROUP BY Tvs.id",
+                []
+        )?;
+        conn.execute("DROP VIEW IF EXISTS SeasonsView",[])?;
+        conn.execute(
+            "CREATE VIEW SeasonsView
+                AS 
+                SELECT
+                    Seasons.tv_id as tv_id,
+                    Seasons.season_number as season_number,
+                    Seasons.episode_count as episode_count,
+                    Seasons.title as title,
+                    Seasons.overview as overview,
+                    Seasons.poster_path as poster_path,
+                    Seasons.release_date as release_date,
+                    Seasons.updatad as updated
+                FROM
+                    Seasons
+                INNER JOIN Episodes ON Episodes.season_id = Seasons.id
+                INNER JOIN Videos ON Videos.media_id = Episodes.id AND Videos.media_type = 1
+
+                GROUP BY Seasons.id",
+                []
+        )?;
+
+        conn.execute("DROP VIEW IF EXISTS EpisodesView",[])?;
+        conn.execute(
+            "CREATE VIEW EpisodesView
+                AS 
+                SELECT
+                    Episodes.id as id,
+                    tv_id,
+                    season_number,
+                    episode_number,
+                    release_date,
+                    title,
+                    overview,
+                    vote_average,
+                    vote_count,
+                    updated
+                FROM
+                    Episodes
+                INNER JOIN Videos ON Videos.media_id = Episodes.id AND Videos.media_type = 1
+                
+                GROUP BY Videos.id",
+                []
+        )?;
+
+        conn.execute("DROP VIEW IF EXISTS TvCastsView",[])?;
+        conn.execute(
+            "CREATE VIEW IF NOT EXISTS TvCastsView
+                AS 
+                SELECT
+                    id,
+                    character,
+                    tv_id,
+                    ord,
+                    name,
+                    profile_path
+                FROM
+                    TvCasts
+                LEFT OUTER JOIN Persons ON TvCasts.person_id = Persons.id
+
+                ",
+                []
+        )?;
+        
+        conn.execute("DROP VIEW IF EXISTS TvCrewsView",[])?;
+        conn.execute(
+            "CREATE VIEW IF NOT EXISTS TvCrewsView
+                AS 
+                SELECT
+                    id,
+                    tv_id,
+                    job,
+                    name,
+                    profile_path
+                FROM
+                    TvCrews
+                LEFT OUTER JOIN Persons ON TvCrews.person_id = Persons.id
+
+                ",
+                []
+        )?;
+
 
         //Person Part
-        self.conn.execute(
+        conn.execute(
             "CREATE TABLE IF NOT EXISTS Persons (
                 id INTEGER PRIMARY KEY NOT NULL,
                 birthday TEXT,
@@ -271,20 +524,76 @@ impl SqlLibrary{
                 gender INTEGER,
                 biography TEXT,
                 popularity FLOAT,
-                place_of_Birth TEXT,
+                place_of_birth TEXT,
                 profile_path TEXT)",
             []
         )?;
+
+        //keywords
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS Keywords (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT)",
+            [],
+        )?;
+
+        //user
+        
 
         Ok(())
     }
 }
 
-pub fn parse_concat( row: Option<String>) -> Option<Vec<String>>{
-    if let Some(row)= row{
-        return Some(row.split(",").map(|s| s.to_string()).collect())
+pub fn parse_concat<T: FromStr>( row: Option<String>) -> Option<Vec<T>>{
+    if let Some(row) = row{
+        return Some(row.split(",").map(|s| {
+            let data = s.parse();
+            match data {
+                Ok(data) => data,
+                Err(_) => todo!(),
+            }
+        }).collect())
     }
     None
+}
+
+pub fn parse_watched(row: Option<u64>) -> u64{
+    if let Some(value) =  row{
+        return value
+    }
+    return 0
+}
+
+pub fn generate_sql<'a>(head: &str, parameters: &'a HashMap<String, Option<(String, String)>>, user: Option<&'a String>) -> (String, Vec<&'a dyn ToSql>){
+    let mut param :Vec<&dyn ToSql> = Vec::new();
+    let mut sql = head.to_string();
+    if let Some(user) = user{
+        param.push(user);
+    }
+    if parameters.len() > 0{
+        sql += " WHERE ";
+        let mut counter = 1;
+        for (name, value) in parameters{
+            if counter > 1{
+                sql += "AND "
+            }
+            
+            if let Some((operator, value)) = value{
+                param.push(value);
+                sql += &format!("{} {} ?{} ", name, operator, &param.len());
+                
+            }
+            else{
+                sql += &format!("{} IS NULL ", name);
+            }
+            
+            counter += 1;
+        }
+    }
+    sql += ";";
+
+    // println!("sql: {}", &sql);
+    (sql, param)
 }
 
 #[derive(Debug)]
@@ -298,6 +607,7 @@ pub struct Error{
     description: String,
     location: String,
 }
+
 
 impl Error{
     pub fn new(kind: ErrorKind, description: String, location: &str) -> Error{

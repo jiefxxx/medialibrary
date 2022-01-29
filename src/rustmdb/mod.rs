@@ -48,13 +48,13 @@ impl Tmdb{
         let mut best: &SearchMovie = &movies.results[0];
         for movie in &movies.results{
             let score_original_title = jaro(title, &movie.original_title.to_lowercase());
-            if score_original_title > score  || (score_original_title == score && movie.release_date[..4] == year.to_string()){
+            if score_original_title > score  || (score_original_title == score && movie.release_date.as_ref().unwrap_or(&"0000".to_string())[..4] == year.to_string()){
                 score = score_original_title;
                 best = movie;
             }
 
             let score_title = jaro(title, &movie.title.to_lowercase());
-            if score_title > score || (score_title == score && movie.release_date[..4] == year.to_string()){
+            if score_title > score || (score_title == score && movie.release_date.as_ref().unwrap_or(&"0000".to_string())[..4] == year.to_string()){
                 score = score_title;
                 best = movie;
             }
@@ -85,6 +85,19 @@ impl Tmdb{
         }
         Ok(Some(best.id))
     }
+
+    #[staticmethod]
+    pub fn search_tv_json(query: &str) -> PyResult<String>{
+        let tvs  = search_tv(query).request()?;
+        Ok(serde_json::to_string(&tvs).unwrap())
+    }
+
+    #[staticmethod]
+    pub fn search_movie_json(query: &str) -> PyResult<String>{
+        let movies  = search_movie(query).request()?;
+        Ok(serde_json::to_string(&movies).unwrap())
+    }
+
 }
 
 pub fn search_movie<'a>(title: &'a str) -> MovieSearch<'a>{
@@ -96,7 +109,7 @@ pub fn search_tv<'a>(title:&'a str) -> TvSearch<'a>{
 }
 
 pub fn get_movie(id: u64) -> Result<Movie, Error>{
-    let parameters = format!("api_key={}&language={}&append_to_response=credits", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
+    let parameters = format!("api_key={}&language={}&append_to_response=credits,keywords,videos", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
     let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/movie/{}?{}",id, parameters)){
         Ok(body) => body,
         Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.movie({})", &id)))
@@ -115,7 +128,7 @@ pub fn get_movie(id: u64) -> Result<Movie, Error>{
 }
 
 pub fn get_tv(id: u64) -> Result<Tv, Error>{
-    let parameters = format!("api_key={}&language={}&append_to_response=credits", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
+    let parameters = format!("api_key={}&language={}&append_to_response=credits,keywords,videos", *TMDBKEY.lock().unwrap(), *LANGUAGE.lock().unwrap());
     let body = match reqwest::blocking::get(format!("https://api.themoviedb.org/3/tv/{}?{}",id, parameters)){
         Ok(body) => body,
         Err(e) => return Err(Error::from_reqwest(e, &format!("tmdb.tv({})", id)))

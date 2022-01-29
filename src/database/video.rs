@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use super::Error;
-use rusqlite::ToSql;
+use super::{Error, generate_sql};
 
 use super::{SqlLibrary, parse_concat};
 
@@ -9,7 +8,9 @@ use crate::library::video::{MediaInfo, Video, VideoResult, EpisodeMinimal, Movie
 impl SqlLibrary{
 
     pub fn create_video(&self, video: Video) -> Result<u64, Error>{
-        self.conn.execute(
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
             "INSERT INTO Videos (
                 path,
                 media_type,
@@ -30,9 +31,9 @@ impl SqlLibrary{
             &video.size.to_string()],
         )?;
 
-        let video_id = self.conn.last_insert_rowid() as u64;
+        let video_id = conn.last_insert_rowid() as u64;
         for language in video.subtitles{
-            self.conn.execute(
+            conn.execute(
                 "INSERT OR IGNORE INTO Subtitles (
                     video_id,
                     language) values (?1, ?2)",
@@ -41,7 +42,7 @@ impl SqlLibrary{
         }
 
         for language in video.audios{
-            self.conn.execute(
+            conn.execute(
                 "INSERT OR IGNORE INTO Audios (
                     video_id,
                     language) values (?1, ?2)",
@@ -52,7 +53,7 @@ impl SqlLibrary{
         Ok(video_id)
     }
 
-    pub fn get_video(&self,video_id: u64) -> Result<Option<Video>, Error>{
+    pub fn get_video(&self,user: &String, video_id: u64) -> Result<Option<Video>, Error>{
         let sql = "SELECT
                             id,
                             path,
@@ -67,36 +68,18 @@ impl SqlLibrary{
                             adding,
                             subtitles,
                             audios, 
-                            m_title, 
-                            t_title, 
-                            release_date, 
-                            episode_number, 
-                            season_number FROM VideosView
+                            release_date FROM VideosView
                         WHERE id = ?1";
-        let mut stmt = self.conn.prepare(&sql)?;
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(&[&video_id.to_string()], |row| {
-            let media_id: Option<u64> = row.get(3)?;
-            let info = match media_id{
-                None => MediaInfo::Unknown,
-                Some(media_id) => match row.get(2)?{
-                    0 => MediaInfo::Movie(MovieMinimal{
-                        id: media_id,
-                        title: row.get(13)?,
-                        release_date: row.get(15)?,
-                    }),
-                    1 => MediaInfo::Tv(EpisodeMinimal{
-                        id: media_id,
-                        title: row.get(14)?,
-                        season_number: row.get(16)?,
-                        episode_number: row.get(17)?,
-                    }),
-                    _ => MediaInfo::Unknown,
-                }
-            };
             Ok(Video{
+                user: user.clone(),
                 id: row.get(0)?,
                 path:row.get(1)?,
                 media_type: row.get(2)?,
+                media_id: row.get(3)?,
                 bit_rate: row.get(5)?,
                 duration: row.get(4)?,
                 size: row.get(9)?,
@@ -106,7 +89,6 @@ impl SqlLibrary{
                 height: row.get(8)?,
                 subtitles: parse_concat(row.get(11)?).unwrap_or_default(),
                 audios: parse_concat(row.get(12)?).unwrap_or_default(),
-                info,
             })
         })?;
 
@@ -117,61 +99,58 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_videos(&self, parameters: HashMap<&str, Option<(String, String)>>) -> Result<Vec<VideoResult>, Error>{
-        let mut param: Vec<&dyn ToSql> = Vec::new();
-        let mut sql = String::new();
-        sql += "SELECT id, path, media_type, media_id, adding, m_title, t_title, release_date, episode_number, season_number FROM VideosView ";
-        if parameters.len() > 0{
-            sql += "WHERE ";
-            let mut counter = 1;
-            for (name, value) in &parameters{
-                if counter > 1{
-                    sql += "AND "
-                }
-                
-                if let Some((operator, value)) = value{
-                    param.push(value);
-                    sql += &format!("{} {} ?{} ", name, operator, &param.len());
-                    
-                }
-                else{
-                    sql += &format!("{} IS NULL ", name);
-                }
-                
-                counter += 1;
-            }
-        }
-        sql += ";";
+    pub fn get_videos(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<VideoResult>, Error>{
+        let (sql, param) = generate_sql("SELECT id, 
+                                                                        path, 
+                                                                        media_type, 
+                                                                        media_id, adding, 
+                                                                        m_title, t_title, 
+                                                                        release_date, 
+                                                                        episode_number, 
+                                                                        season_number, 
+                                                                        duration,
+                                                                        codec,
+                                                                        size,
+                                                                        subtitles,
+                                                                        audios, 
+                                                                        m_id, t_id FROM VideosView", &parameters, None);
 
-        // println!("sql: {}", &sql);
-
-        let mut stmt = self.conn.prepare(&sql)?;
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
     
         let rows = stmt.query_map(param.as_slice(), |row| {
             let media_id: Option<u64> = row.get(3)?;
             let info = match media_id{
                 None => MediaInfo::Unknown,
-                Some(media_id) => match row.get(2)?{
+                Some(_media_id) => match row.get(2)?{
                     0 => MediaInfo::Movie(MovieMinimal{
-                        id: media_id,
+                        id: row.get(15)?,
                         title: row.get(5)?,
                         release_date: row.get(7)?,
                     }),
                     1 => MediaInfo::Tv(EpisodeMinimal{
-                        id: media_id,
+                        id: row.get(16)?,
                         title: row.get(6)?,
-                        season_number: row.get(8)?,
-                        episode_number: row.get(9)?,
+                        season_number: row.get(9)?,
+                        episode_number: row.get(8)?,
                     }),
                     _ => MediaInfo::Unknown,
                 }
             };
             Ok(VideoResult{
+                user: user.clone(),
                 id: row.get(0)?,
                 path: row.get(1)?,
                 media_type: row.get(2)?,
                 adding: row.get(4)?,
                 info,
+                duration: row.get(10)?,
+                codec: row.get(11)?,
+                size: row.get(12)?,
+                subtitles: parse_concat(row.get(13)?).unwrap_or_default(),
+                audios: parse_concat(row.get(14)?).unwrap_or_default(),
             })
         })?;
 
@@ -183,7 +162,9 @@ impl SqlLibrary{
     }
 
     pub fn edit_video_media_id(&self, video_id: u64, media_id: u64) -> Result<(), Error>{
-        self.conn.execute(
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
             "UPDATE Videos SET media_id = ?1 WHERE id = ?2",
             &[
                 &media_id.to_string(),
@@ -193,7 +174,9 @@ impl SqlLibrary{
     }
 
     pub fn _edit_video_path(&self, video_id: u64, path: &str) -> Result<(), Error>{
-        self.conn.execute(
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
             "UPDATE Videos SET path = ?1 WHERE id = ?2",
             &[
                 path,
@@ -204,7 +187,9 @@ impl SqlLibrary{
 
 
     pub fn _edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), Error>{
-        self.conn.execute(
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
             "INSERT OR REPLACE INTO LastTime (
                 video_id,
                 user_id,
@@ -215,18 +200,5 @@ impl SqlLibrary{
                 &last_time.to_string()],
         )?;
         Ok(())
-    }
-
-    pub fn get_video_media_type(&self, video_id: u64) -> Result<Option<u8>, Error>{
-        let mut stmt = self.conn.prepare(
-            "SELECT media_type from Videos
-             WHERE id = ?1",
-        )?;
-    
-        let rows = stmt.query_map(&[&video_id.to_string()], |row| row.get(0))?;
-        for row in rows{
-            return Ok(Some(row?))
-        }
-        Ok(None)
     }
 }

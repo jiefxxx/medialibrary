@@ -5,9 +5,10 @@ use super::SqlLibrary;
 
 impl SqlLibrary{
 
-    pub fn create_person(&mut self, person: &Person) -> Result<(Vec<u64>, Vec<String>), Error>{
-
-        let tx = self.conn.transaction()?;
+    pub fn create_person(&self, person: &Person) -> Result<(Vec<u64>, Vec<String>), Error>{
+        let mut m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_mut().unwrap();
+        let tx = conn.transaction()?;
 
         let person_ids = Vec::new();
         let mut rsc_path = Vec::new();
@@ -48,7 +49,9 @@ impl SqlLibrary{
     }
 
     pub fn person_exist(&self, person_id: u64) -> Result<bool, Error>{
-        let mut stmt = self.conn.prepare(
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(
             "SELECT name from Persons
              WHERE id = ?1",
         )?;

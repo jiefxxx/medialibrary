@@ -1,11 +1,23 @@
+use std::collections::HashMap;
+
+use crate::library::cast::Cast;
+use crate::library::cast::Crew;
+use crate::library::keyword::Keyword;
+use crate::library::trailer::Trailer;
 use crate::rustmdb;
 use super::Error;
 use super::SqlLibrary;
+use super::generate_sql;
+use super::parse_concat;
+use super::parse_watched;
+use crate::library::movie::{MovieResult, Movie};
 
 
 impl SqlLibrary{
-    pub fn create_movie(&mut self, movie: &rustmdb::model::Movie) -> Result<(Vec<u64>, Vec<String>), Error>{
-        let tx = self.conn.transaction()?;
+    pub fn create_movie(&self, movie: &rustmdb::model::Movie) -> Result<(Vec<u64>, Vec<String>), Error>{
+        let mut m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_mut().unwrap();
+        let tx = conn.transaction()?;
 
         let mut person_ids = Vec::new();
         let mut rsc_path = Vec::new();
@@ -25,7 +37,8 @@ impl SqlLibrary{
                 vote_count,
                 tagline,
                 status,
-                adult) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                adult,
+                updated) values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, datetime('now'))",
 
             &[
                 &movie.id.to_string(),
@@ -75,7 +88,7 @@ impl SqlLibrary{
         }
 
         for cast in &movie.credits.cast{
-            if cast.order > 10{
+            if cast.order > 25{
                 continue
             }
     
@@ -96,22 +109,302 @@ impl SqlLibrary{
             person_ids.push(cast.id)
         }
 
+        for crew in &movie.credits.crew{
+            if !(crew.job == "Screenplay" ||  crew.job == "Director" || crew.job == "Producer"){
+                continue
+            }
+    
+            tx.execute(
+                "INSERT OR REPLACE INTO MovieCrews (
+                    person_id,
+                    movie_id,
+                    job) values (?1, ?2, ?3)",
+    
+                &[
+                &crew.id.to_string(),
+                &movie.id.to_string(), 
+                &crew.job.to_string()],
+            )?;
+
+            person_ids.push(crew.id)
+        }
+
+        for video in &movie.videos.results{
+            if video.site != "YouTube"{
+                continue
+            }
+            tx.execute(
+                "INSERT OR REPLACE INTO MovieTrailers (
+                    movie_id,
+                    name,
+                    youtube_id) values (?1, ?2, ?3)",
+    
+                &[
+                &movie.id.to_string(),
+                &video.name,
+                &video.key],
+            )?;
+        }
+
+        for keyword in &movie.keywords.keywords{
+
+            tx.execute(
+                "INSERT OR REPLACE INTO movieKeywordLinks (
+                    keyword_id,
+                    movie_id) values (?1, ?2)",
+    
+                &[
+                &keyword.id.to_string(),
+                &movie.id.to_string()],
+            )?;
+    
+            tx.execute(
+                "INSERT OR IGNORE INTO Keywords (
+                    id,
+                    name) values (?1, ?2)",
+    
+                &[
+                &keyword.id.to_string(),
+                &keyword.name],
+            )?;
+        }
+
         tx.commit()?;
 
         Ok((person_ids, rsc_path))
     }
 
-    pub fn movie_exist(&self, movie_id: u64) -> Result<bool, Error>{
-        let mut stmt = self.conn.prepare(
-            "SELECT original_title from Movies
-             WHERE id = ?1",
-        )?;
-    
-        let rows = stmt.query_map(&[&movie_id.to_string()], |row| row.get(0))?;
+    pub fn get_movie(&self, user: &String, movie_id: u64) -> Result<Option<Movie>, Error>{
+        let sql = "SELECT
+                        id,
+                        original_title,
+                        original_language,
+                        title,
+                        release_date,
+                        overview,
+                        popularity,
+                        poster_path,
+                        backdrop_path,
+                        vote_average,
+                        vote_count,
+                        tagline,
+                        status,
+                        genres,
+                        adding,
+                        MovieUserWatched.watched,
+                        updated
+                        FROM MoviesView
+                        LEFT OUTER JOIN MovieUserWatched ON MoviesView.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1
+                        WHERE id = ?2";
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+        
+        let rows = stmt.query_map(&[user, &movie_id.to_string()], |row| {
+
+            Ok(Movie{ 
+                user: user.clone(),
+                id: row.get(0)?, 
+                original_title: row.get(1)?, 
+                original_language: row.get(2)?, 
+                title: row.get(3)?, 
+                release_date: row.get(4)?, 
+                overview: row.get(5)?, 
+                popularity: row.get(6)?, 
+                poster_path: row.get(7)?, 
+                backdrop_path: row.get(8)?, 
+                vote_average: row.get(9)?, 
+                vote_count: row.get(10)?, 
+                tagline: row.get(11)?, 
+                status: row.get(12)?, 
+                genres: parse_concat(row.get(13)?).unwrap_or_default(), 
+                adding: row.get(14)?,
+                updated: row.get(15)?,
+                watched: parse_watched(row.get(15)?),  
+                video: Vec::new(),
+                cast: Vec::new(),
+                crew: Vec::new(),
+                trailer: Vec::new(),
+                keyword: Vec::new(),
+
+            })
+        })?;
+
         for row in rows{
-            let _unused: String = row?;
-            return Ok(true)
+            return Ok(Some(row?));
         }
-        Ok(false)
+
+        Ok(None)
+    }
+
+    pub fn get_movies(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<MovieResult>, Error>{
+        let (sql, param) = generate_sql("SELECT id, 
+                                                    title, 
+                                                    release_date, 
+                                                    poster_path, 
+                                                    vote_average,
+                                                    genres,
+                                                    adding,
+                                                    MovieUserWatched.watched
+                                                FROM MoviesView 
+                                                LEFT OUTER JOIN MovieUserWatched ON MoviesView.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1", &parameters, Some(user));
+
+        // println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(param.as_slice(), |row| {
+            Ok(MovieResult{ 
+                user: user.clone(),
+                id: row.get(0)?, 
+                title: row.get(1)?, 
+                release_date: row.get(2)?, 
+                poster_path: row.get(3)?, 
+                vote_average: row.get(4)?, 
+                genres: parse_concat(row.get(5)?).unwrap_or_default(), 
+                adding: row.get(6)?,
+                watched: parse_watched(row.get(7)?)
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_movie_cast(&self, movie_id: u64) -> Result<Vec<Cast>, Error>{
+        let sql = "SELECT
+                            id,
+                            character,
+                            ord,
+                            name,
+                            profile_path
+                        FROM MovieCastsView
+                        WHERE movie_id = ?";
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
+            Ok(Cast{
+                id: row.get(0)?,
+                character: row.get(1)?,
+                ord: row.get(2)?,
+                name: row.get(3)?,
+                profile_path: row.get(4)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_movie_crew(&self, movie_id: u64) -> Result<Vec<Crew>, Error>{
+        let sql = "SELECT
+                            id,
+                            job,
+                            name,
+                            profile_path
+                        FROM MovieCrewsView
+                        WHERE movie_id = ?";
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
+            Ok(Crew{
+                id: row.get(0)?,
+                job: row.get(1)?,
+                name: row.get(2)?,
+                profile_path: row.get(3)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_movie_trailer(&self, movie_id: u64) -> Result<Vec<Trailer>, Error>{
+        let sql = "SELECT
+                            name,
+                            youtube_id
+                        FROM MovieTrailers
+                        WHERE movie_id = ?";
+        // println!("sql: {}", &sql);
+
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
+            Ok(Trailer{
+                name: row.get(0)?,
+                youtube_id: row.get(1)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_movie_keywords(&self, movie_id: u64) -> Result<Vec<Keyword>, Error>{
+        let sql = "SELECT
+                            name,
+                            id
+                        FROM MovieKeywordLinks
+                        INNER JOIN Keywords ON MovieKeywordLinks.keyword_id = Keywords.id
+                        WHERE movie_id = ?";
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
+            Ok(Keyword{
+                name: row.get(0)?,
+                id: row.get(1)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn set_movie_watched(&self, user: String, movie_id: u64, watched: bool) -> Result< (), Error>{
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO MovieUserWatched (
+                watched,
+                user_name,
+                movie_id) values (?1, ?2, ?3)",
+            &[
+                &watched.to_string(),
+                &user,
+                &movie_id.to_string()],
+        )?;
+        Ok(())
     }
 }
