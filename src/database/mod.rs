@@ -57,7 +57,7 @@ impl SqlLibrary{
                 video_id INTEGER NOT NULL,
                 user_name INTEGER NOT NULL,
                 last_time INTEGER,
-                unique(video_id, user_id))",
+                unique(video_id, user_name))",
             [],
         )?;
 
