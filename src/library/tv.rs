@@ -172,7 +172,7 @@ impl TvSearch{
 #[pymethods]
 impl TvSearch{
     pub fn id(&mut self, id: u64) -> PyResult<TvSearch>{
-        self.find("id", "=", Some(id.to_string()))
+        self.find("TvsView.id", "=", Some(id.to_string()))
     }
 
     pub fn find(&mut self, column: &str, operator: &str, value: Option<String>) -> PyResult<TvSearch>{

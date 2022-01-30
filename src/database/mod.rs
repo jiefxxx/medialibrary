@@ -232,7 +232,7 @@ impl SqlLibrary{
             "CREATE VIEW MovieCastsView
                 AS 
                 SELECT
-                    id,
+                    Persons.id as id,
                     character,
                     movie_id,
                     ord,
@@ -251,7 +251,7 @@ impl SqlLibrary{
             "CREATE VIEW MovieCrewsView
                 AS 
                 SELECT
-                    id,
+                    Persons.id as id,
                     job,
                     movie_id,
                     name,
@@ -481,7 +481,7 @@ impl SqlLibrary{
             "CREATE VIEW IF NOT EXISTS TvCastsView
                 AS 
                 SELECT
-                    id,
+                    Persons.id as id,
                     character,
                     tv_id,
                     ord,
@@ -500,7 +500,7 @@ impl SqlLibrary{
             "CREATE VIEW IF NOT EXISTS TvCrewsView
                 AS 
                 SELECT
-                    id,
+                    Persons.id as id,
                     tv_id,
                     job,
                     name,
@@ -591,7 +591,7 @@ pub fn generate_sql<'a>(head: &str, parameters: &'a HashMap<String, Option<(Stri
             counter += 1;
         }
     }
-    sql += ";";
+    //sql += ";";
 
     // println!("sql: {}", &sql);
     (sql, param)

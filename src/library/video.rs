@@ -75,7 +75,7 @@ impl Video{
     }
 
     pub fn set_tv(&mut self, tv_id: u64, season: u64, episode: u64) -> PyResult<()>{
-        if self.media_type != 0{
+        if self.media_type != 1{
             return Err(Error::new(ErrorKind::MediaType,"mediatype error".to_string(),&format!("media type not episode {}", self.media_type)).into())
         }
 

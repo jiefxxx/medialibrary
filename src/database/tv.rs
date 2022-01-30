@@ -326,7 +326,7 @@ impl SqlLibrary{
     }
 
     pub fn get_tv(&self, user: &String, tv_id: u64) -> Result<Option<Tv>, Error>{
-        println!("get_tv {:?}", &tv_id);
+        //println!("get_tv {:?}", &tv_id);
         let sql = "SELECT
                             TvsView.id, 
                             TvsView.original_title, 
@@ -350,7 +350,7 @@ impl SqlLibrary{
                         FROM TvsView
                         LEFT OUTER JOIN Episodes ON TvsView.id = Episodes.tv_id
                         LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE id = ?1";
+                        WHERE TvsView.id = ?1";
 
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -393,7 +393,7 @@ impl SqlLibrary{
     }
 
     pub fn get_tvs(&self,user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<TvResult>, Error>{
-        let (sql, param) = generate_sql("SELECT 
+        let (mut sql, param) = generate_sql("SELECT 
                                                     TvsView.id,
                                                     TvsView.title,
                                                     TvsView.release_date,
@@ -406,8 +406,9 @@ impl SqlLibrary{
                                                 LEFT OUTER JOIN Episodes ON TvsView.id = Episodes.tv_id
                                                 LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
                                                 ", parameters, Some(user));
+        sql += "\nGROUP BY TvsView.id";
 
-        // println!("sql: {}", &sql);
+        //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;
@@ -448,7 +449,7 @@ impl SqlLibrary{
                         FROM SeasonsView
                         LEFT OUTER JOIN Episodes ON SeasonsView.tv_id = Episodes.tv_id AND SeasonsView.season_number = Episodes.season_number
                         LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE tv_id = ?2";
+                        WHERE SeasonsView.tv_id = ?2";
         // println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -493,9 +494,9 @@ impl SqlLibrary{
                             EpisodesUserWatched.watched,
                             EpisodesView.updated
                         FROM EpisodesView
-                        EFT OUTER JOIN EpisodesUserWatched ON EpisodesView.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE tv_id = ?2 AND season_number = ?3";
-        println!("sql: {}", &sql);
+                        LEFT OUTER JOIN EpisodesUserWatched ON EpisodesView.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
+                        WHERE EpisodesView.tv_id = ?2 AND EpisodesView.season_number = ?3";
+        //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;
@@ -530,24 +531,26 @@ impl SqlLibrary{
 
     pub fn get_episode_by_id(&self, user: &String, episode_id: u64) -> Result<Option<Episode>, Error>{
         let sql = "SELECT
-                            season_number,
-                            episode_number,
-                            release_date,
-                            title,
-                            overview,
-                            vote_average,
-                            vote_count,
-                            id,
-                            tv_id,
-                            season_number
+                            EpisodesView.season_number,
+                            EpisodesView.episode_number,
+                            EpisodesView.release_date,
+                            EpisodesView.title,
+                            EpisodesView.overview,
+                            EpisodesView.vote_average,
+                            EpisodesView.vote_count,
+                            EpisodesView.id,
+                            EpisodesView.tv_id,
+                            EpisodesUserWatched.watched,
+                            EpisodesView.updated
                         FROM EpisodesView
-                        WHERE id = ?1";
-        println!("sql: {}", &sql);
+                        LEFT OUTER JOIN EpisodesUserWatched ON EpisodesView.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
+                        WHERE EpisodesView.id = ?2";
+        //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;
     
-        let rows = stmt.query_map(&[&episode_id.to_string(),], |row| {
+        let rows = stmt.query_map(&[user, &episode_id.to_string(),], |row| {
             Ok(Episode{
                 user: user.clone(),
                 season_number: row.get(0)?,
@@ -603,7 +606,7 @@ impl SqlLibrary{
                             profile_path
                         FROM TvCastsView
                         WHERE tv_id = ?1";
-        println!("sql: {}", &sql);
+        //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;
@@ -634,7 +637,7 @@ impl SqlLibrary{
                             profile_path
                         FROM TvCrewsView
                         WHERE tv_id = ?1";
-        println!("sql: {}", &sql);
+        //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;

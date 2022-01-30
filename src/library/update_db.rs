@@ -42,7 +42,6 @@ pub fn create_tv(user: &String, tv_id: u64) -> PyResult<()>{
     if TvSearch::new(user).id(tv_id)?.exist()?{
         return Ok(())
     }
-    
     let tv = get_tv(tv_id)?;
     let (person_ids, rsc_paths) = DATABASE.create_tv(&tv)?;
     for person_id in person_ids{
@@ -58,9 +57,7 @@ pub fn create_episode(user: &String, tv_id: u64, season_number: u64, episode_num
     if let Some(episode) = DATABASE.get_episode(user, tv_id, season_number, episode_number)?{
         return Ok(episode.id)
     }
-
     create_tv(user, tv_id)?;
-
     let episode = get_tv_episode(tv_id, season_number, episode_number)?;
     let (person_ids, rsc_paths) = DATABASE.create_episode(tv_id, &episode)?;
     for person_id in person_ids{
