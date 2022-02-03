@@ -66,23 +66,23 @@ pub struct Movie{
 #[pymethods]
 impl Movie{
 
-    pub fn get_videos(&mut self) -> PyResult<()>{
+    pub fn set_videos(&mut self) -> PyResult<()>{
         self.video = VideoSearch::new(self.user.clone()).movie()?.media_id(self.id)?.results()?;
         Ok(())
     }
 
-    pub fn get_persons(&mut self) -> PyResult<()>{
+    pub fn set_persons(&mut self) -> PyResult<()>{
         self.cast = DATABASE.get_movie_cast(self.id)?;
         self.crew = DATABASE.get_movie_crew(self.id)?;
         Ok(())
     }
 
-    pub fn get_trailers(&mut self) -> PyResult<()>{
+    pub fn set_trailers(&mut self) -> PyResult<()>{
         self.trailer = DATABASE.get_movie_trailer(self.id)?;
         Ok(())
     }
 
-    pub fn get_keywords(&mut self) -> PyResult<()>{
+    pub fn set_keywords(&mut self) -> PyResult<()>{
         self.keyword = DATABASE.get_movie_keywords(self.id)?;
         Ok(())
     }

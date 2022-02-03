@@ -89,6 +89,10 @@ impl SqlLibrary{
                 &season.poster_path.as_ref().unwrap_or(&"".to_string()),
                 &season.air_date.as_ref().unwrap_or(&"".to_string()),],
             )?;
+            
+            if let Some(poster_path) = &season.poster_path{
+                rsc_path.push(poster_path.clone())
+            }
         }
 
         if let Some(backdrop_path) = &tv.backdrop_path{
@@ -350,7 +354,7 @@ impl SqlLibrary{
                         FROM TvsView
                         LEFT OUTER JOIN Episodes ON TvsView.id = Episodes.tv_id
                         LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE TvsView.id = ?1";
+                        WHERE TvsView.id = ?2";
 
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -449,7 +453,8 @@ impl SqlLibrary{
                         FROM SeasonsView
                         LEFT OUTER JOIN Episodes ON SeasonsView.tv_id = Episodes.tv_id AND SeasonsView.season_number = Episodes.season_number
                         LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE SeasonsView.tv_id = ?2";
+                        WHERE SeasonsView.tv_id = ?2
+                        GROUP BY SeasonsView.id";
         // println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();

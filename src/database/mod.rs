@@ -436,6 +436,7 @@ impl SqlLibrary{
             "CREATE VIEW SeasonsView
                 AS 
                 SELECT
+                    Seasons.id as id,
                     Seasons.tv_id as tv_id,
                     Seasons.season_number as season_number,
                     Seasons.episode_count as episode_count,
@@ -443,7 +444,7 @@ impl SqlLibrary{
                     Seasons.overview as overview,
                     Seasons.poster_path as poster_path,
                     Seasons.release_date as release_date,
-                    Seasons.updatad as updated
+                    Seasons.updated as updated
                 FROM
                     Seasons
                 INNER JOIN Episodes ON Episodes.season_id = Seasons.id

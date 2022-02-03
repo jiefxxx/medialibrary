@@ -296,12 +296,12 @@ impl VideoSearch{
     }
 
     pub fn unknown(&mut self) -> PyResult<VideoSearch>{
-        self.find("media_id", "", None)
+        self.find("media_id", "is", None)
         
     }
 
     pub fn media_id(&mut self, id: u64)  -> PyResult<VideoSearch>{
-        self.find("media_id", "", Some(id.to_string()))
+        self.find("media_id", "=", Some(id.to_string()))
     }
 
     pub fn id(&mut self, id: u64) -> PyResult<VideoSearch>{
