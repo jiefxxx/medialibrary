@@ -392,7 +392,7 @@ impl SqlLibrary{
         Ok(result)
     }
 
-    pub fn set_movie_watched(&self, user: String, movie_id: u64, watched: bool) -> Result< (), Error>{
+    pub fn set_movie_watched(&self, user: String, movie_id: u64, watched: u64) -> Result< (), Error>{
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         conn.execute(

@@ -68,12 +68,15 @@ impl SqlLibrary{
                             adding,
                             subtitles,
                             audios, 
-                            release_date FROM VideosView
-                        WHERE id = ?1";
+                            WatchTime.watch_time,
+                            WatchTime.last_watch
+                        FROM VideosView
+                        LEFT OUTER JOIN WatchTime ON VideosView.id = WatchTime.video_id AND WatchTime.user_name = ?1
+                        WHERE id = ?2";
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(&[&video_id.to_string()], |row| {
+        let rows = stmt.query_map(&[user, &video_id.to_string()], |row| {
             Ok(Video{
                 user: user.clone(),
                 id: row.get(0)?,
@@ -89,6 +92,8 @@ impl SqlLibrary{
                 height: row.get(8)?,
                 subtitles: parse_concat(row.get(11)?).unwrap_or_default(),
                 audios: parse_concat(row.get(12)?).unwrap_or_default(),
+                watch_time: row.get(13)?,
+                last_watch: row.get(14)?,
             })
         })?;
 
@@ -100,21 +105,28 @@ impl SqlLibrary{
     }
 
     pub fn get_videos(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<VideoResult>, Error>{
-        let (sql, param) = generate_sql("SELECT id, 
-                                                                        path, 
-                                                                        media_type, 
-                                                                        media_id, adding, 
-                                                                        m_title, t_title, 
-                                                                        release_date, 
-                                                                        episode_number, 
-                                                                        season_number, 
-                                                                        duration,
-                                                                        codec,
-                                                                        size,
-                                                                        subtitles,
-                                                                        audios, 
-                                                                        m_id, t_id FROM VideosView", &parameters, None);
-
+        let (mut sql, param) = generate_sql("SELECT 
+                                id, 
+                                path, 
+                                media_type, 
+                                media_id, 
+                                adding, 
+                                m_title, 
+                                t_title, 
+                                release_date, 
+                                episode_number, 
+                                season_number, 
+                                duration,
+                                codec,
+                                size,
+                                subtitles,
+                                audios, 
+                                m_id, 
+                                t_id,
+                                WatchTime.last_watch as last_watch
+                            FROM VideosView
+                            LEFT OUTER JOIN WatchTime ON VideosView.id = WatchTime.video_id AND WatchTime.user_name = ?1", &parameters, Some(user));
+        sql += "\nGROUP BY VideosView.id";
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -185,19 +197,20 @@ impl SqlLibrary{
         Ok(())
     }
 
-
-    pub fn _edit_last_time(&self, video_id: u64, user_id: u64, last_time: u64) -> Result<(), Error>{
+    pub fn set_watch_time(&self, user: String, video_id: u64, time: u64) -> Result< (), Error>{
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         conn.execute(
-            "INSERT OR REPLACE INTO LastTime (
+            "INSERT OR REPLACE INTO WatchTime (
+                user_name,
                 video_id,
-                user_id,
-                last_time) values (?1, ?2, ?3)",
+                watch_time,
+                last_watch
+            ) values (?1, ?2, ?3, datetime('now'))",
             &[
+                &user,
                 &video_id.to_string(),
-                &user_id.to_string(),
-                &last_time.to_string()],
+                &time.to_string()],
         )?;
         Ok(())
     }

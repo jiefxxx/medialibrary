@@ -39,6 +39,10 @@ pub struct Video{
     #[pyo3(get)]
     pub height: u64,
     #[pyo3(get)]
+    pub watch_time: Option<u64>,
+    #[pyo3(get)]
+    pub last_watch: Option<String>,
+    #[pyo3(get)]
     pub subtitles: Vec<String>,
     #[pyo3(get)]
     pub audios: Vec<String>,
@@ -110,6 +114,23 @@ impl Video{
         }
     }
 
+    pub fn set_watch_time(&self, time: u64) -> PyResult<()>{
+        DATABASE.set_watch_time(self.user.clone(), self.id, time)?;
+        if time > (self.duration * 100)/90{
+            if self.media_type == 0{
+                if let Some(movie) = self.movie()?{
+                    movie.set_watched()?;
+                }
+            }
+            else if self.media_type == 1{
+                if let Some(epiosde) = self.tv_episode()?{
+                    epiosde.set_watched()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
     }
@@ -132,6 +153,8 @@ impl Video{
             height: 0,
             subtitles: Vec::new(),
             audios: Vec::new(),
+            watch_time: None,
+            last_watch: None,
         }
     }
 

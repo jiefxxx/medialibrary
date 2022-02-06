@@ -87,8 +87,12 @@ impl Movie{
         Ok(())
     }
 
-    pub fn set_watched(&self, user: String, watched: bool) -> PyResult<()>{
-        Ok(DATABASE.set_movie_watched(user, self.id, watched)?)
+    pub fn set_watched(&self) -> PyResult<()>{
+        Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, self.watched+1)?)
+    }
+
+    pub fn reset_watched(&self) -> PyResult<()>{
+        Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, 0)?)
     }
 
     pub fn json(&self) -> PyResult<String>{

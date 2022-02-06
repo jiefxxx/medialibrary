@@ -98,9 +98,21 @@ impl Tv{
         Ok(DATABASE.get_episode(&self.user, self.id, season_number, episode_number)?)
     }
 
-    /* pub fn set_watched(&self, user: String, watched: bool) -> PyResult<()>{
-        Ok(DATABASE.set_tv_watched(user, self.id, watched)?)
-    }*/
+    pub fn set_watched(&mut self) -> PyResult<()>{
+        self.set_seasons()?;
+        for season in &mut self.seasons{
+            season.set_watched()?;
+        }
+        Ok(())
+    }
+
+    pub fn reset_watched(&mut self) -> PyResult<()>{
+        self.set_seasons()?;
+        for season in &mut self.seasons{
+            season.reset_watched()?;
+        }
+        Ok(())
+    }
 
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
@@ -262,6 +274,22 @@ impl Season{
         Ok(())
     }
 
+    pub fn set_watched(&mut self) -> PyResult<()>{
+        self.set_episodes()?;
+        for episode in &self.episodes{
+            episode.set_watched()?;
+        }
+        Ok(())
+    }
+
+    pub fn reset_watched(&mut self) -> PyResult<()>{
+        self.set_episodes()?;
+        for episode in &self.episodes{
+            episode.reset_watched()?;
+        }
+        Ok(())
+    }
+
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
     }
@@ -331,6 +359,14 @@ impl Episode{
     pub fn set_videos(&mut self) -> PyResult<()>{
         self.video = VideoSearch::new(self.user.clone()).tv()?.media_id(self.id)?.results()?;
         Ok(())
+    }
+
+    pub fn set_watched(&self) -> PyResult<()>{
+        Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, self.watched+1)?)
+    }
+
+    pub fn reset_watched(&self) -> PyResult<()>{
+        Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, 0)?)
     }
 
     pub fn json(&self) -> PyResult<String>{

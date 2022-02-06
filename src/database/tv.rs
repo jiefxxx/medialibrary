@@ -500,7 +500,8 @@ impl SqlLibrary{
                             EpisodesView.updated
                         FROM EpisodesView
                         LEFT OUTER JOIN EpisodesUserWatched ON EpisodesView.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE EpisodesView.tv_id = ?2 AND EpisodesView.season_number = ?3";
+                        WHERE EpisodesView.tv_id = ?2 AND EpisodesView.season_number = ?3
+                        GROUP BY EpisodesView.id";
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -549,7 +550,8 @@ impl SqlLibrary{
                             EpisodesView.updated
                         FROM EpisodesView
                         LEFT OUTER JOIN EpisodesUserWatched ON EpisodesView.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                        WHERE EpisodesView.id = ?2";
+                        WHERE EpisodesView.id = ?2
+                        GROUP BY EpisodesView.id";
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -715,5 +717,21 @@ impl SqlLibrary{
             result.push(row?);
         }
         Ok(result)
+    }
+
+    pub fn set_episode_watched(&self, user: String, movie_id: u64, watched: u64) -> Result< (), Error>{
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO EpisodesUserWatched (
+                watched,
+                user_name,
+                episode_id) values (?1, ?2, ?3)",
+            &[
+                &watched.to_string(),
+                &user,
+                &movie_id.to_string()],
+        )?;
+        Ok(())
     }
 }

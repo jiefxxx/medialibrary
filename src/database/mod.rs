@@ -53,10 +53,11 @@ impl SqlLibrary{
         )?;
 
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS LastTime (
+            "CREATE TABLE IF NOT EXISTS WatchTime (
                 video_id INTEGER NOT NULL,
                 user_name INTEGER NOT NULL,
-                last_time INTEGER,
+                watch_time INTEGER,
+                last_watch TEXT,
                 unique(video_id, user_name))",
             [],
         )?;
