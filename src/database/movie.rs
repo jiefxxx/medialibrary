@@ -195,7 +195,8 @@ impl SqlLibrary{
                         updated
                         FROM MoviesView
                         LEFT OUTER JOIN MovieUserWatched ON MoviesView.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1
-                        WHERE id = ?2";
+                        WHERE id = ?2
+                        GROUP BY MoviesView.id";
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         let mut stmt = conn.prepare(&sql)?;
@@ -226,6 +227,7 @@ impl SqlLibrary{
                 crew: Vec::new(),
                 trailer: Vec::new(),
                 keyword: Vec::new(),
+                collection: Vec::new(),
 
             })
         })?;
@@ -238,17 +240,24 @@ impl SqlLibrary{
     }
 
     pub fn get_movies(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<MovieResult>, Error>{
-        let (sql, param) = generate_sql("SELECT id, 
-                                                    title, 
-                                                    release_date, 
-                                                    poster_path, 
-                                                    vote_average,
-                                                    genres,
-                                                    adding,
+        let (mut sql, param) = generate_sql("SELECT 
+                                                    Movies.id, 
+                                                    Movies.title, 
+                                                    Movies.release_date, 
+                                                    Movies.poster_path, 
+                                                    Movies.vote_average,
+                                                    GROUP_CONCAT(DISTINCT MovieGenres.name),
+                                                    MAX(Videos.adding),
                                                     MovieUserWatched.watched
-                                                FROM MoviesView 
-                                                LEFT OUTER JOIN MovieUserWatched ON MoviesView.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1", &parameters, Some(user));
-
+                                                FROM Movies
+                                                INNER JOIN Videos ON Movies.id = Videos.media_id AND Videos.media_type = 0
+                                                LEFT OUTER JOIN MovieGenreLinks ON Movies.id = MovieGenreLinks.movie_id
+                                                LEFT OUTER JOIN MovieGenres ON MovieGenreLinks.genre_id = MovieGenres.id 
+                                                LEFT OUTER JOIN MovieCasts ON Movies.id = MovieCasts.movie_id
+                                                LEFT OUTER JOIN MovieCrews ON Movies.id = MovieCrews.movie_id
+                                                LEFT OUTER JOIN MovieCollectionLinks ON Movies.id = MovieCollectionLinks.movie_id
+                                                LEFT OUTER JOIN MovieUserWatched ON Movies.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1", &parameters, Some(user));
+                                                sql += "\nGROUP BY Movies.id";
         // println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -276,7 +285,7 @@ impl SqlLibrary{
         Ok(result)
     }
 
-    pub fn get_movie_cast(&self, movie_id: u64) -> Result<Vec<Cast>, Error>{
+    pub fn get_movie_cast(&self, user: &String, movie_id: u64) -> Result<Vec<Cast>, Error>{
         let sql = "SELECT
                             id,
                             character,
@@ -292,6 +301,7 @@ impl SqlLibrary{
     
         let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
             Ok(Cast{
+                user: user.clone(),
                 id: row.get(0)?,
                 character: row.get(1)?,
                 ord: row.get(2)?,
@@ -308,7 +318,7 @@ impl SqlLibrary{
         Ok(result)
     }
 
-    pub fn get_movie_crew(&self, movie_id: u64) -> Result<Vec<Crew>, Error>{
+    pub fn get_movie_crew(&self, user: &String, movie_id: u64) -> Result<Vec<Crew>, Error>{
         let sql = "SELECT
                             id,
                             job,
@@ -323,6 +333,7 @@ impl SqlLibrary{
     
         let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
             Ok(Crew{
+                user: user.clone(),
                 id: row.get(0)?,
                 job: row.get(1)?,
                 name: row.get(2)?,
@@ -405,6 +416,40 @@ impl SqlLibrary{
                 &user,
                 &movie_id.to_string()],
         )?;
+        Ok(())
+    }
+
+    pub fn delete_movie(&self, movie_id: u64) -> Result<(), Error>{
+        let mut m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_mut().unwrap();
+        let tx = conn.transaction()?;
+
+        tx.execute("DELETE FROM Movies
+                        WHERE id=?1", &[&movie_id.to_string()])?;
+        
+        tx.execute("DELETE FROM MovieGenreLinks
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+        
+        tx.execute("DELETE FROM MovieCollectionLinks
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+
+        tx.execute("DELETE FROM MovieKeywordLinks
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+
+        tx.execute("DELETE FROM MovieTrailers
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+
+        tx.execute("DELETE FROM MovieCasts
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+
+        tx.execute("DELETE FROM MovieCrews
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+        
+        tx.execute("DELETE FROM MovieUserWatched
+                        WHERE movie_id=?1", &[&movie_id.to_string()])?;
+
+        tx.commit()?;
+        
         Ok(())
     }
 }

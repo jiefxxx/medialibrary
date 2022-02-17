@@ -6,7 +6,7 @@ use pyo3::exceptions::PyReferenceError;
 
 use crate::{rustmdb::{get_movie, get_person, get_tv, get_tv_episode}, database::DATABASE};
 
-use super::{RSCPATH, movie::MovieSearch, tv::TvSearch};
+use super::{RSCPATH, movie::MovieSearch, tv::{TvSearch, EpisodeSearch}, cast::PersonSearch};
 
 
 pub fn create_movie(user: &String, movie_id: u64) -> PyResult<()>{
@@ -16,7 +16,7 @@ pub fn create_movie(user: &String, movie_id: u64) -> PyResult<()>{
     let movie = get_movie(movie_id)?;
     let (person_ids, rsc_paths) = DATABASE.create_movie(&movie)?;
     for person_id in person_ids{
-        create_person(person_id)?;
+        create_person(user, person_id)?;
     }
     for rsc_path in rsc_paths{
         update_rsc(&rsc_path)?;
@@ -26,8 +26,8 @@ pub fn create_movie(user: &String, movie_id: u64) -> PyResult<()>{
 }
 
 
-pub fn create_person(person_id: u64) -> PyResult<()>{
-    if DATABASE.person_exist(person_id)?{
+pub fn create_person(user: &String, person_id: u64) -> PyResult<()>{
+    if PersonSearch::new(user).id(person_id)?.exist()?{
         return Ok(())
     }
     let person = get_person(person_id)?;
@@ -45,7 +45,7 @@ pub fn create_tv(user: &String, tv_id: u64) -> PyResult<()>{
     let tv = get_tv(tv_id)?;
     let (person_ids, rsc_paths) = DATABASE.create_tv(&tv)?;
     for person_id in person_ids{
-        create_person(person_id)?;
+        create_person(user, person_id)?;
     }
     for rsc_path in rsc_paths{
         update_rsc(&rsc_path)?;
@@ -54,14 +54,14 @@ pub fn create_tv(user: &String, tv_id: u64) -> PyResult<()>{
 }
 
 pub fn create_episode(user: &String, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<u64>{
-    if let Some(episode) = DATABASE.get_episode(user, tv_id, season_number, episode_number)?{
+    if let Some(episode) = EpisodeSearch::new(user).tv(tv_id)?.season(season_number)?.episode(episode_number)?.last()?{
         return Ok(episode.id)
     }
     create_tv(user, tv_id)?;
     let episode = get_tv_episode(tv_id, season_number, episode_number)?;
     let (person_ids, rsc_paths) = DATABASE.create_episode(tv_id, &episode)?;
     for person_id in person_ids{
-        create_person(person_id)?;
+        create_person(user, person_id)?;
     }
     for rsc_path in rsc_paths{
         update_rsc(&rsc_path)?;

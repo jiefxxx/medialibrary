@@ -7,6 +7,8 @@ use crate::database::DATABASE;
 
 use super::cast::Cast;
 use super::cast::Crew;
+use super::collection::CollectionResult;
+use super::collection::CollectionSearch;
 use super::keyword::Keyword;
 use super::trailer::Trailer;
 use super::video::VideoResult;
@@ -61,6 +63,8 @@ pub struct Tv{
     #[pyo3(get)]
     pub keyword: Vec<Keyword>,
     #[pyo3(get)]
+    pub collection: Vec<CollectionResult>,
+    #[pyo3(get)]
     pub watched: u64,
     #[pyo3(get)]
     pub updated: String,
@@ -75,8 +79,8 @@ impl Tv{
     }
 
     pub fn set_persons(&mut self) -> PyResult<()>{
-        self.cast = DATABASE.get_tv_cast(self.id)?;
-        self.crew = DATABASE.get_tv_crew(self.id)?;
+        self.cast = DATABASE.get_tv_cast(&self.user, self.id)?;
+        self.crew = DATABASE.get_tv_crew(&self.user, self.id)?;
         Ok(())
     }
 
@@ -90,12 +94,17 @@ impl Tv{
         Ok(())
     }
 
+    pub fn set_collection(&mut self) -> PyResult<()>{
+        self.collection = CollectionSearch::new(&self.user).tv(self.id)?.results()?;
+        Ok(())
+    }
+
     pub fn season(&self, season_number: u64) -> PyResult<Option<Season>>{
         Ok(DATABASE.get_season(&self.user, self.id, season_number)?)
     }
 
     pub fn episode(&self, season_number: u64, episode_number: u64) -> PyResult<Option<Episode>>{
-        Ok(DATABASE.get_episode(&self.user, self.id, season_number, episode_number)?)
+        Ok(EpisodeSearch::new(&self.user).tv(self.id)?.season(season_number)?.episode(episode_number)?.last()?)
     }
 
     pub fn set_watched(&mut self) -> PyResult<()>{
@@ -110,6 +119,21 @@ impl Tv{
         self.set_seasons()?;
         for season in &mut self.seasons{
             season.reset_watched()?;
+        }
+        Ok(())
+    }
+
+    pub fn delete(&mut self) -> PyResult<()>{
+        if EpisodeSearch::new(&self.user).tv(self.id)?.exist()?{
+            return Ok(())
+        }
+        self.set_persons()?;
+        DATABASE.delete_tv(self.id)?;
+        for crew in &self.crew{
+            crew.full()?.delete()?;
+        }
+        for cast in &self.cast{
+            cast.full()?.delete()?;
         }
         Ok(())
     }
@@ -153,6 +177,13 @@ pub struct TvResult{
     pub watched: u64,
 }
 
+#[pymethods]
+impl TvResult{
+    pub fn full(&self) -> PyResult<Tv>{
+        Ok(DATABASE.get_tv(&self.user, self.id)?.unwrap())
+    }
+}
+
 
 #[pyproto]
 impl PyObjectProtocol for TvResult {
@@ -184,7 +215,19 @@ impl TvSearch{
 #[pymethods]
 impl TvSearch{
     pub fn id(&mut self, id: u64) -> PyResult<TvSearch>{
-        self.find("TvsView.id", "=", Some(id.to_string()))
+        self.find("Tvs.id", "=", Some(id.to_string()))
+    }
+
+    pub fn cast(&mut self, person_id: u64) -> PyResult<TvSearch>{
+        self.find("TvCasts.person_id", "=", Some(person_id.to_string()))
+    }
+
+    pub fn crew(&mut self, person_id: u64) -> PyResult<TvSearch>{
+        self.find("TvCrews.person_id", "=", Some(person_id.to_string()))
+    }
+
+    pub fn collection(&mut self, collection_id: u64) -> PyResult<TvSearch>{
+        self.find("TvCollectionLinks.collection_id", "=", Some(collection_id.to_string()))
     }
 
     pub fn find(&mut self, column: &str, operator: &str, value: Option<String>) -> PyResult<TvSearch>{
@@ -259,11 +302,11 @@ impl Season{
     }
 
     pub fn episode(&mut self, episode_number: u64) -> PyResult<Option<Episode>>{
-        Ok(DATABASE.get_episode(&self.user, self.tv_id, self.season_number, episode_number)?)
+        Ok(EpisodeSearch::new(&self.user).tv(self.tv_id)?.season(self.season_number)?.episode(episode_number)?.last()?)
     }
 
     pub fn set_episodes(&mut self) -> PyResult<()>{
-        self.episodes = DATABASE.get_episodes(&self.user, self.tv_id, self.season_number)?;
+        self.episodes = EpisodeSearch::new(&self.user).tv(self.tv_id)?.season(self.season_number)?.results()?;
         Ok(())
     }
 
@@ -305,6 +348,68 @@ impl PyObjectProtocol for Season {
 
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct EpisodeSearch{
+   parameters: HashMap<String, Option<(String, String)>>,
+   user: String,
+}
+
+impl EpisodeSearch{
+    pub fn new(user: &String) -> EpisodeSearch{
+        EpisodeSearch{
+            parameters: HashMap::new(),
+            user: user.clone(),
+        }
+    }
+}
+
+#[pymethods]
+impl EpisodeSearch{
+    pub fn find(&mut self, column: &str, operator: &str, value: Option<String>) -> PyResult<EpisodeSearch>{
+        if let Some(value) = value {
+            self.parameters.insert(column.to_string(), Some((operator.to_string(), value)));
+        }
+        else{
+            self.parameters.insert(column.to_string(), None);
+        }
+        Ok(self.clone())
+    }
+
+    pub fn id(&mut self, episode_id: u64) -> PyResult<EpisodeSearch>{
+        self.find("Episodes.id", "=", Some(episode_id.to_string()))
+    }
+
+    pub fn season(&mut self, season_number: u64) -> PyResult<EpisodeSearch>{
+        self.find("Episodes.season_number", "=", Some(season_number.to_string()))
+    }
+
+    pub fn episode(&mut self, episode_number: u64) -> PyResult<EpisodeSearch>{
+        self.find("Episodes.episode_number", "=", Some(episode_number.to_string()))
+    }
+
+    pub fn tv(&mut self, tv_id: u64) -> PyResult<EpisodeSearch>{
+        self.find("Episodes.tv_id", "=", Some(tv_id.to_string()))
+    }
+
+    pub fn last(&self) -> PyResult<Option<Episode>>{
+        Ok(self.results()?.pop())
+    }
+
+    pub fn exist(&self) -> PyResult<bool>{
+        Ok(self.results()?.len() > 0)
+    } 
+
+    pub fn results(&self) -> PyResult<Vec<Episode>>{
+        Ok(DATABASE.get_episodes(&self.user, &self.parameters)?)
+    }
+
+    pub fn json_results(&self) -> PyResult<String>{
+        let list = self.results()?;
+        Ok(serde_json::to_string(&list).unwrap())
     }
 }
 
@@ -357,7 +462,7 @@ impl Episode{
     }
 
     pub fn set_videos(&mut self) -> PyResult<()>{
-        self.video = VideoSearch::new(self.user.clone()).tv()?.media_id(self.id)?.results()?;
+        self.video = VideoSearch::new(&self.user).tv()?.media_id(self.id)?.results()?;
         Ok(())
     }
 
@@ -367,6 +472,22 @@ impl Episode{
 
     pub fn reset_watched(&self) -> PyResult<()>{
         Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, 0)?)
+    }
+
+    pub fn delete(&mut self) -> PyResult<()>{
+        if VideoSearch::new(&self.user).tv()?.media_id(self.id)?.exist()?{
+            return Ok(())
+        }
+
+        self.set_tv()?;
+
+        DATABASE.delete_episode(self.id)?;
+
+        if let Some(tv) = &mut self.tv{
+            tv.delete()?;
+        }
+
+        Ok(())
     }
 
     pub fn json(&self) -> PyResult<String>{

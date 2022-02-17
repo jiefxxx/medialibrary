@@ -8,6 +8,8 @@ use crate::database::DATABASE;
 
 use super::cast::Cast;
 use super::cast::Crew;
+use super::collection::CollectionResult;
+use super::collection::CollectionSearch;
 use super::keyword::Keyword;
 use super::trailer::Trailer;
 use super::video::VideoResult;
@@ -60,6 +62,8 @@ pub struct Movie{
     #[pyo3(get)]
     pub keyword: Vec<Keyword>,
     #[pyo3(get)]
+    pub collection: Vec<CollectionResult>,
+    #[pyo3(get)]
     pub updated: String,
 }
 
@@ -67,13 +71,18 @@ pub struct Movie{
 impl Movie{
 
     pub fn set_videos(&mut self) -> PyResult<()>{
-        self.video = VideoSearch::new(self.user.clone()).movie()?.media_id(self.id)?.results()?;
+        self.video = VideoSearch::new(&self.user).movie()?.media_id(self.id)?.results()?;
+        Ok(())
+    }
+
+    pub fn set_collection(&mut self) -> PyResult<()>{
+        self.collection = CollectionSearch::new(&self.user).movie(self.id)?.results()?;
         Ok(())
     }
 
     pub fn set_persons(&mut self) -> PyResult<()>{
-        self.cast = DATABASE.get_movie_cast(self.id)?;
-        self.crew = DATABASE.get_movie_crew(self.id)?;
+        self.cast = DATABASE.get_movie_cast(&self.user, self.id)?;
+        self.crew = DATABASE.get_movie_crew(&self.user, self.id)?;
         Ok(())
     }
 
@@ -95,6 +104,21 @@ impl Movie{
         Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, 0)?)
     }
 
+    pub fn delete(&mut self) -> PyResult<()>{
+        if VideoSearch::new(&self.user).media_id(self.id)?.exist()?{
+            return Ok(())
+        }
+        self.set_persons()?;
+        DATABASE.delete_movie(self.id)?;
+        for crew in &self.crew{
+            crew.full()?.delete()?;
+        }
+        for cast in &self.cast{
+            cast.full()?.delete()?;
+        }
+        Ok(())
+    }
+
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
     }
@@ -113,7 +137,7 @@ impl PyObjectProtocol for Movie {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct MovieResult{
     pub user: String,
     #[pyo3(get)]
@@ -132,6 +156,13 @@ pub struct MovieResult{
     pub adding: String,
     #[pyo3(get)]
     pub watched: u64,
+}
+
+#[pymethods]
+impl MovieResult{
+    pub fn full(&self) -> PyResult<Movie>{
+        Ok(DATABASE.get_movie(&self.user, self.id)?.unwrap())
+    }
 }
 
 
@@ -165,7 +196,19 @@ impl MovieSearch{
 #[pymethods]
 impl MovieSearch{
     pub fn id(&mut self, id: u64) -> PyResult<MovieSearch>{
-        self.find("id", "=", Some(id.to_string()))
+        self.find("Movies.id", "=", Some(id.to_string()))
+    }
+
+    pub fn cast(&mut self, person_id: u64) -> PyResult<MovieSearch>{
+        self.find("MovieCasts.person_id", "=", Some(person_id.to_string()))
+    }
+
+    pub fn collection(&mut self, collection_id: u64) -> PyResult<MovieSearch>{
+        self.find("MovieCollectionLinks.collection_id", "=", Some(collection_id.to_string()))
+    }
+
+    pub fn crew(&mut self, person_id: u64) -> PyResult<MovieSearch>{
+        self.find("MovieCrews.person_id", "=", Some(person_id.to_string()))
     }
 
     pub fn find(&mut self, column: &str, operator: &str, value: Option<String>) -> PyResult<MovieSearch>{

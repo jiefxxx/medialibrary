@@ -13,11 +13,14 @@ pub mod tv;
 pub mod cast;
 pub mod keyword;
 pub mod trailer;
+pub mod collection;
 
 use video::Video;
 
+use self::cast::{Person, PersonSearch};
+use self::collection::Collection;
 use self::movie::{Movie, MovieSearch};
-use self::tv::{Tv, Season, Episode, TvSearch};
+use self::tv::{Tv, Season, Episode, TvSearch, EpisodeSearch};
 use self::video::VideoSearch;
 
 lazy_static! {
@@ -42,7 +45,7 @@ impl Library {
     }
 
     pub fn videos(&self, user: String) -> VideoSearch{
-        VideoSearch::new(user)
+        VideoSearch::new(&user)
     }
     
     pub fn video(&self, user: String, video_id: u64) -> PyResult<Option<Video>>{
@@ -70,7 +73,27 @@ impl Library {
     }
 
     pub fn tv_episode(&self, user:String, tv_id: u64, season_number: u64, episode_number: u64) -> PyResult<Option<Episode>>{
-        Ok(DATABASE.get_episode(&user, tv_id, season_number, episode_number)?)
+        Ok(EpisodeSearch::new(&user).tv(tv_id)?.season(season_number)?.episode(episode_number)?.last()?)
+    }
+
+    pub fn tv_episodes(&self, user: String) -> EpisodeSearch{
+        EpisodeSearch::new(&user)
+    }
+
+    pub fn persons(&self, user: String) -> PersonSearch{
+        PersonSearch::new(&user)
+    }
+
+    pub fn person(&self, user: String, person_id: u64) -> PyResult<Option<Person>>{
+        Ok(DATABASE.get_person(&user, person_id)?)
+    }
+
+    pub fn new_collection(&self, user: String, collection_name: String) -> PyResult<Collection>{
+        Ok(DATABASE.create_collection(&user, collection_name)?)
+    }
+
+    pub fn collection(&self, user: String, collection_id: u64) -> PyResult<Option<Collection>>{
+        Ok(DATABASE.get_collection(&user, collection_id)?)
     }
 
 }
@@ -78,6 +101,7 @@ impl Library {
 #[derive(Debug)]
 pub enum ErrorKind{
     ParseName,
+    NotFound,
     MediaType
 }
 

@@ -8,7 +8,7 @@ use regex::Regex;
 use crate::database::DATABASE;
 
 use super::movie::Movie;
-use super::tv::Episode;
+use super::tv::{Episode, EpisodeSearch};
 use super::update_db::{create_movie, create_episode};
 use super::{Error, ErrorKind};
 
@@ -107,7 +107,7 @@ impl Video{
             return Err(Error::new(ErrorKind::MediaType,"mediatype error".to_string(),&format!("media type not episode {}", self.media_type)).into())
         }
         if let Some(media_id) = self.media_id{
-            Ok(DATABASE.get_episode_by_id(&self.user, media_id)?)
+            Ok(EpisodeSearch::new(&self.user).id(media_id)?.last()?)
         }
         else{
             Ok(None)
@@ -126,6 +126,21 @@ impl Video{
                 if let Some(epiosde) = self.tv_episode()?{
                     epiosde.set_watched()?;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn delete(&self) -> PyResult<()>{
+        DATABASE.delete_video(self.id)?;
+        if self.media_type == 0{
+            if let Some(movie) = &mut self.movie()?{
+                movie.delete()?;
+            }
+        }
+        else if self.media_type == 1{
+            if let Some(epiosde) = &mut self.tv_episode()?{
+                epiosde.delete()?;
             }
         }
         Ok(())
@@ -296,10 +311,10 @@ pub struct VideoSearch{
 }
 
 impl VideoSearch{
-    pub fn new(user: String) -> VideoSearch{
+    pub fn new(user: &String) -> VideoSearch{
         VideoSearch{
             parameters: HashMap::new(),
-            user,
+            user: user.clone(),
         }
     }
 }

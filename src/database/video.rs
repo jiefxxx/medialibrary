@@ -68,10 +68,10 @@ impl SqlLibrary{
                             adding,
                             subtitles,
                             audios, 
-                            WatchTime.watch_time,
-                            WatchTime.last_watch
+                            WatchTimes.watch_time,
+                            WatchTimes.last_watch
                         FROM VideosView
-                        LEFT OUTER JOIN WatchTime ON VideosView.id = WatchTime.video_id AND WatchTime.user_name = ?1
+                        LEFT OUTER JOIN WatchTimes ON VideosView.id = WatchTimes.video_id AND WatchTimes.user_name = ?1
                         WHERE id = ?2";
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -123,9 +123,9 @@ impl SqlLibrary{
                                 audios, 
                                 m_id, 
                                 t_id,
-                                WatchTime.last_watch as last_watch
+                                WatchTimes.last_watch as last_watch
                             FROM VideosView
-                            LEFT OUTER JOIN WatchTime ON VideosView.id = WatchTime.video_id AND WatchTime.user_name = ?1", &parameters, Some(user));
+                            LEFT OUTER JOIN WatchTimes ON VideosView.id = WatchTimes.video_id AND WatchTimes.user_name = ?1", &parameters, Some(user));
         sql += "\nGROUP BY VideosView.id";
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
@@ -201,7 +201,7 @@ impl SqlLibrary{
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         conn.execute(
-            "INSERT OR REPLACE INTO WatchTime (
+            "INSERT OR REPLACE INTO WatchTimes (
                 user_name,
                 video_id,
                 watch_time,
@@ -212,6 +212,28 @@ impl SqlLibrary{
                 &video_id.to_string(),
                 &time.to_string()],
         )?;
+        Ok(())
+    }
+
+    pub fn delete_video(&self, video_id: u64) -> Result<(), Error>{
+        let mut m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_mut().unwrap();
+        let tx = conn.transaction()?;
+
+        tx.execute("DELETE FROM Videos
+                        WHERE id=?1", &[&video_id.to_string()])?;
+        
+        tx.execute("DELETE FROM WatchTimes
+                        WHERE video_id=?1", &[&video_id.to_string()])?;
+        
+        tx.execute("DELETE FROM Audios
+                        WHERE video_id=?1", &[&video_id.to_string()])?;
+
+        tx.execute("DELETE FROM Subtitles
+                        WHERE video_id=?1", &[&video_id.to_string()])?;
+
+        tx.commit()?;
+        
         Ok(())
     }
 }

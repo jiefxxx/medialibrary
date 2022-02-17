@@ -6,6 +6,7 @@ mod video;
 mod movie;
 mod tv;
 mod person;
+mod collection;
 
 lazy_static! {
     pub static ref DATABASE: Arc<SqlLibrary> = Arc::new(SqlLibrary::new());
@@ -53,7 +54,7 @@ impl SqlLibrary{
         )?;
 
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS WatchTime (
+            "CREATE TABLE IF NOT EXISTS WatchTimes (
                 video_id INTEGER NOT NULL,
                 user_name INTEGER NOT NULL,
                 watch_time INTEGER,
@@ -148,6 +149,14 @@ impl SqlLibrary{
                 movie_id INTEGER NOT NULL,
                 genre_id INTEGER NOT NULL,
                 unique(movie_id,genre_id))",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS MovieCollectionLinks (
+                movie_id INTEGER NOT NULL,
+                collection_id INTEGER NOT NULL,
+                unique(movie_id, collection_id))",
             [],
         )?;
 
@@ -301,6 +310,14 @@ impl SqlLibrary{
                 tv_id INTEGER NOT NULL,
                 genre_id INTEGER NOT NULL,
                 unique(tv_id,genre_id))",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS TvCollectionLinks (
+                tv_id INTEGER NOT NULL,
+                collection_id INTEGER NOT NULL,
+                unique(tv_id, collection_id))",
             [],
         )?;
 
@@ -541,6 +558,18 @@ impl SqlLibrary{
         )?;
 
         //user
+
+        //Person Part
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS Collections (
+                id INTEGER PRIMARY KEY NOT NULL,
+                name TEXT,
+                description TEXT,
+                creator TEXT,
+                creation_date TEXT,
+                poster_path TEXT)",
+            []
+        )?;
         
 
         Ok(())
