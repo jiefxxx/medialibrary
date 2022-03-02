@@ -37,13 +37,31 @@ pub struct Collection{
 impl Collection{
 
     pub fn set_movie(&mut self) -> PyResult<()>{
+        println!("self.id {}", self.id);
         self.movie = MovieSearch::new(&self.user).collection(self.id)?.results()?;
+        println!("self.id {:?}", self.movie);
         Ok(())
     }
 
     pub fn set_tv(&mut self) -> PyResult<()>{
         self.tv = TvSearch::new(&self.user).collection(self.id)?.results()?;
         Ok(())
+    }
+
+    pub fn add_movie(&mut self, movie_id: u64) -> PyResult<()>{
+        let movie = MovieSearch::new(&self.user).id(movie_id)?.last()?.unwrap();
+        if self.poster_path.len() == 0{
+            self.poster_path = movie.poster_path
+        }
+        Ok(DATABASE.add_movie_collection(self.id, movie_id)?)
+    }
+
+    pub fn add_tv(&mut self, tv_id: u64) -> PyResult<()>{
+        let movie = TvSearch::new(&self.user).id(tv_id)?.last()?.unwrap();
+        if self.poster_path.len() == 0{
+            self.poster_path = movie.poster_path
+        }
+        Ok(DATABASE.add_tv_collection(self.id, tv_id)?)
     }
 
     pub fn edit_description(&mut self, description: String){
@@ -139,6 +157,10 @@ impl CollectionSearch{
 
     pub fn tv(&mut self, tv_id: u64) -> PyResult<CollectionSearch>{
         self.find("TvCollectionLinks.tv_id", "=", Some(tv_id.to_string()))
+    }
+
+    pub fn restrict(&mut self) -> PyResult<CollectionSearch>{
+        self.find("Collections.creator", "=", Some(self.user.clone()))
     }
 
     pub fn find(&mut self, column: &str, operator: &str, value: Option<String>) -> PyResult<CollectionSearch>{

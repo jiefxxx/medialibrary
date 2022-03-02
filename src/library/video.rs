@@ -75,6 +75,13 @@ impl Video{
         create_movie(&self.user, movie_id)?;
 
         DATABASE.edit_video_media_id(self.id, movie_id)?;
+
+        if let Some(movie) = &mut self.movie()?{
+            movie.delete()?;
+        }
+
+        self.media_id = Some(movie_id);
+
         Ok(())
     }
 
@@ -86,6 +93,12 @@ impl Video{
         let episode_id = create_episode(&self.user, tv_id, season, episode)?;
 
         DATABASE.edit_video_media_id(self.id, episode_id)?;
+
+        if let Some(epiosde) = &mut self.tv_episode()?{
+            epiosde.delete()?;
+        }
+
+        self.media_id = Some(episode_id);
 
         Ok(())
     }
@@ -119,12 +132,12 @@ impl Video{
         if time > (self.duration * 100)/90{
             if self.media_type == 0{
                 if let Some(movie) = self.movie()?{
-                    movie.set_watched()?;
+                    movie.set_watched(true)?;
                 }
             }
             else if self.media_type == 1{
                 if let Some(epiosde) = self.tv_episode()?{
-                    epiosde.set_watched()?;
+                    epiosde.set_watched(true)?;
                 }
             }
         }
@@ -195,14 +208,18 @@ impl Video{
                     "Audio" => {
                         if let Ok(language) = track.getattr("language"){
                             if let Ok(extracted) = language.extract(){
-                                video.audios.push(extracted);
+                                if video.audios.iter().any(|e| e == &extracted){
+                                    video.audios.push(extracted);
+                                }
                             }
                         }
-                    }
+                    },
                     "Text" => {
                         if let Ok(language) = track.getattr("language"){
                             if let Ok(extracted) = language.extract(){
-                                video.subtitles.push(extracted);
+                                if video.subtitles.iter().any(|e| e == &extracted){
+                                    video.subtitles.push(extracted);
+                                }
                             }
                         }
                     }
@@ -368,6 +385,10 @@ impl VideoSearch{
     pub fn json_results(&self) -> PyResult<String>{
         let list = self.results()?;
         Ok(serde_json::to_string(&list).unwrap())
+    }
+
+    pub fn last(&self) -> PyResult<Option<VideoResult>>{
+        Ok(self.results()?.pop())
     }
 }
 

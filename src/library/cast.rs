@@ -7,7 +7,8 @@ use crate::database::DATABASE;
 
 use super::movie::MovieResult;
 use super::movie::MovieSearch;
-use super::tv::TvResult;
+use super::tv::Episode;
+use super::tv::EpisodeSearch;
 use super::tv::TvSearch;
 
 #[pyclass]
@@ -85,9 +86,9 @@ pub struct Person{
     #[pyo3(get)]
     pub crew_movie: Vec<MovieResult>,
     #[pyo3(get)]
-    pub cast_tv: Vec<TvResult>,
+    pub cast_tv: Vec<Episode>,
     #[pyo3(get)]
-    pub crew_tv: Vec<TvResult>,
+    pub crew_tv: Vec<Episode>,
 }
 
 #[pymethods]
@@ -99,8 +100,8 @@ impl Person{
     }
 
     pub fn set_tv(&mut self) -> PyResult<()>{
-        self.cast_tv = TvSearch::new(&self.user).cast(self.id)?.results()?;
-        self.crew_tv = TvSearch::new(&self.user).crew(self.id)?.results()?;
+        self.cast_tv = EpisodeSearch::new(&self.user).cast(self.id)?.results()?;
+        self.crew_tv = EpisodeSearch::new(&self.user).crew(self.id)?.results()?;
         Ok(())
     }
 

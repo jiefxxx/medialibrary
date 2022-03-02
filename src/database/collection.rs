@@ -8,8 +8,7 @@ use super::{Error, generate_sql};
 impl SqlLibrary{
     pub fn create_collection(&self, user: &String, name: String)  -> Result<Collection, Error>{
         let m_conn = self.conn.lock().unwrap();
-        let conn = m_conn.as_ref().unwrap();
-        conn.execute(
+        m_conn.as_ref().unwrap().execute(
             "INSERT INTO Collections (
                 name,
                 description,
@@ -18,13 +17,17 @@ impl SqlLibrary{
                 poster_path) values (?1, '', ?2, datetime('now'), '')",
             &[&name, user] 
         )?;
-        Ok(self.get_collection(user, conn.last_insert_rowid() as u64)?.unwrap())
+
+        let id = m_conn.as_ref().unwrap().last_insert_rowid() as u64;
+
+        drop(m_conn);
+
+        Ok(self.get_collection(user, id)?.unwrap())
     }
 
     pub fn update_collection(&self, user: &String, collection: &Collection)  -> Result<Collection, Error>{
         let m_conn = self.conn.lock().unwrap();
-        let conn = m_conn.as_ref().unwrap();
-        conn.execute(
+        m_conn.as_ref().unwrap().execute(
             "INSERT OR REPLACE INTO Collections (
                 id,
                 name,
@@ -39,7 +42,33 @@ impl SqlLibrary{
                     &collection.creation_date,
                     &collection.poster_path,] 
         )?;
-        Ok(self.get_collection(user, conn.last_insert_rowid() as u64)?.unwrap())
+        let id = m_conn.as_ref().unwrap().last_insert_rowid() as u64;
+
+        drop(m_conn);
+
+        Ok(self.get_collection(user, id)?.unwrap())
+    }
+
+    pub fn add_movie_collection(&self, collection_id: u64, movie_id: u64)  -> Result<(), Error>{
+        let m_conn = self.conn.lock().unwrap();
+        m_conn.as_ref().unwrap().execute(
+            "INSERT INTO MovieCollectionLinks (
+                movie_id,
+                collection_id) values (?1, ?2)",
+            &[&movie_id.to_string(), &collection_id.to_string()] 
+        )?;
+        Ok(())
+    }
+
+    pub fn add_tv_collection(&self, collection_id: u64, tv_id: u64)  -> Result<(), Error>{
+        let m_conn = self.conn.lock().unwrap();
+        m_conn.as_ref().unwrap().execute(
+            "INSERT INTO TvCollectionLinks (
+                tv_id,
+                collection_id) values (?1, ?2)",
+            &[&tv_id.to_string(), &collection_id.to_string()] 
+        )?;
+        Ok(())
     }
 
     pub fn get_collection(&self, user: &String, collection_id: u64)-> Result<Option<Collection>, Error>{

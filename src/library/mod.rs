@@ -18,7 +18,7 @@ pub mod collection;
 use video::Video;
 
 use self::cast::{Person, PersonSearch};
-use self::collection::Collection;
+use self::collection::{Collection, CollectionSearch};
 use self::movie::{Movie, MovieSearch};
 use self::tv::{Tv, Season, Episode, TvSearch, EpisodeSearch};
 use self::video::VideoSearch;
@@ -95,6 +95,11 @@ impl Library {
     pub fn collection(&self, user: String, collection_id: u64) -> PyResult<Option<Collection>>{
         Ok(DATABASE.get_collection(&user, collection_id)?)
     }
+
+    pub fn collections(&self, user: String) -> CollectionSearch{
+        CollectionSearch::new(&user)
+    }
+
 
 }
 

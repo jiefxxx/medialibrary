@@ -107,18 +107,10 @@ impl Tv{
         Ok(EpisodeSearch::new(&self.user).tv(self.id)?.season(season_number)?.episode(episode_number)?.last()?)
     }
 
-    pub fn set_watched(&mut self) -> PyResult<()>{
+    pub fn set_watched(&mut self, b: bool) -> PyResult<()>{
         self.set_seasons()?;
         for season in &mut self.seasons{
-            season.set_watched()?;
-        }
-        Ok(())
-    }
-
-    pub fn reset_watched(&mut self) -> PyResult<()>{
-        self.set_seasons()?;
-        for season in &mut self.seasons{
-            season.reset_watched()?;
+            season.set_watched(b)?;
         }
         Ok(())
     }
@@ -252,6 +244,10 @@ impl TvSearch{
         let list = self.results()?;
         Ok(serde_json::to_string(&list).unwrap())
     }
+
+    pub fn last(&self) -> PyResult<Option<TvResult>>{
+        Ok(self.results()?.pop())
+    }
 }
 
 #[pyproto]
@@ -317,18 +313,10 @@ impl Season{
         Ok(())
     }
 
-    pub fn set_watched(&mut self) -> PyResult<()>{
+    pub fn set_watched(&mut self, b: bool) -> PyResult<()>{
         self.set_episodes()?;
         for episode in &self.episodes{
-            episode.set_watched()?;
-        }
-        Ok(())
-    }
-
-    pub fn reset_watched(&mut self) -> PyResult<()>{
-        self.set_episodes()?;
-        for episode in &self.episodes{
-            episode.reset_watched()?;
+            episode.set_watched(b)?;
         }
         Ok(())
     }
@@ -395,6 +383,14 @@ impl EpisodeSearch{
         self.find("Episodes.tv_id", "=", Some(tv_id.to_string()))
     }
 
+    pub fn cast(&mut self, person_id: u64) -> PyResult<EpisodeSearch>{
+        self.find("EpisodeCasts.person_id", "=", Some(person_id.to_string()))
+    }
+
+    pub fn crew(&mut self, person_id: u64) -> PyResult<EpisodeSearch>{
+        self.find("EpisodeCrews.person_id", "=", Some(person_id.to_string()))
+    }
+
     pub fn last(&self) -> PyResult<Option<Episode>>{
         Ok(self.results()?.pop())
     }
@@ -446,6 +442,15 @@ pub struct Episode{
     pub watched: u64,
     #[pyo3(get)]
     pub updated: String,
+    #[pyo3(get)]
+    pub poster_path: String,
+    #[pyo3(get)]
+    pub tv_title: String,
+    #[pyo3(get)]
+    pub cast: Vec<Cast>,
+    #[pyo3(get)]
+    pub crew: Vec<Crew>,
+
 }
 
 #[pymethods]
@@ -466,12 +471,20 @@ impl Episode{
         Ok(())
     }
 
-    pub fn set_watched(&self) -> PyResult<()>{
-        Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, self.watched+1)?)
+    pub fn set_persons(&mut self) -> PyResult<()>{
+        self.cast = DATABASE.get_episode_cast(&self.user, self.id)?;
+        self.crew = DATABASE.get_episode_crew(&self.user, self.id)?;
+        Ok(())
     }
 
-    pub fn reset_watched(&self) -> PyResult<()>{
-        Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, 0)?)
+    pub fn set_watched(&self, b: bool) -> PyResult<()>{
+        if b{
+            Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, self.watched+1)?)
+        }
+        else{
+            Ok(DATABASE.set_episode_watched(self.user.clone(), self.id, 0)?)
+        }
+        
     }
 
     pub fn delete(&mut self) -> PyResult<()>{
@@ -486,6 +499,8 @@ impl Episode{
         if let Some(tv) = &mut self.tv{
             tv.delete()?;
         }
+
+        //todo person remove for episode
 
         Ok(())
     }

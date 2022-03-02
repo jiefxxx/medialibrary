@@ -96,12 +96,14 @@ impl Movie{
         Ok(())
     }
 
-    pub fn set_watched(&self) -> PyResult<()>{
-        Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, self.watched+1)?)
-    }
-
-    pub fn reset_watched(&self) -> PyResult<()>{
-        Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, 0)?)
+    pub fn set_watched(&self, b: bool) -> PyResult<()>{
+        if b{
+            Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, self.watched+1)?)
+        }
+        else{
+            Ok(DATABASE.set_movie_watched(self.user.clone(), self.id, 0)?)
+        }
+        
     }
 
     pub fn delete(&mut self) -> PyResult<()>{
@@ -232,6 +234,10 @@ impl MovieSearch{
     pub fn json_results(&self) -> PyResult<String>{
         let list = self.results()?;
         Ok(serde_json::to_string(&list).unwrap())
+    }
+
+    pub fn last(&self) -> PyResult<Option<MovieResult>>{
+        Ok(self.results()?.pop())
     }
 }
 

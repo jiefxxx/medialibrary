@@ -88,10 +88,6 @@ impl SqlLibrary{
         }
 
         for cast in &movie.credits.cast{
-            if cast.order > 25{
-                continue
-            }
-    
             tx.execute(
                 "INSERT OR REPLACE INTO MovieCasts (
                     person_id,

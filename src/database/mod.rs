@@ -532,6 +532,43 @@ impl SqlLibrary{
                 []
         )?;
 
+        conn.execute("DROP VIEW IF EXISTS EpisodeCastsView",[])?;
+        conn.execute(
+            "CREATE VIEW IF NOT EXISTS EpisodeCastsView
+                AS 
+                SELECT
+                    Persons.id as id,
+                    character,
+                    episode_id,
+                    ord,
+                    name,
+                    profile_path
+                FROM
+                    EpisodeCasts
+                LEFT OUTER JOIN Persons ON EpisodeCasts.person_id = Persons.id
+
+                ",
+                []
+        )?;
+        
+        conn.execute("DROP VIEW IF EXISTS EpisodeCrewsView",[])?;
+        conn.execute(
+            "CREATE VIEW IF NOT EXISTS EpisodeCrewsView
+                AS 
+                SELECT
+                    Persons.id as id,
+                    episode_id,
+                    job,
+                    name,
+                    profile_path
+                FROM
+                    EpisodeCrews
+                LEFT OUTER JOIN Persons ON EpisodeCrews.person_id = Persons.id
+
+                ",
+                []
+        )?;
+
 
         //Person Part
         conn.execute(
@@ -567,7 +604,8 @@ impl SqlLibrary{
                 description TEXT,
                 creator TEXT,
                 creation_date TEXT,
-                poster_path TEXT)",
+                poster_path TEXT,
+                unique(name, creator))",
             []
         )?;
         
