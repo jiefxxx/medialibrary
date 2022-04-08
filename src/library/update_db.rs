@@ -78,8 +78,7 @@ pub fn update_rsc(rsc_path: &str) -> PyResult<()>{
         Ok(resp) => resp.bytes().unwrap(),
         Err(e) => return Err(PyReferenceError::new_err(format!("reqwest error getting poster path {}", e))),
     };
-    let file_path = RSCPATH.lock().unwrap().clone() + "/original" +rsc_path;
-    println!("file_path {:?}", file_path);
+    
     let mut out = File::create(RSCPATH.lock().unwrap().clone() + "/original" +rsc_path)?;
 
     io::copy(&mut resp.as_ref(), &mut out)?;

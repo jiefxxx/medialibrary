@@ -185,7 +185,7 @@ impl SqlLibrary{
         Ok(())
     }
 
-    pub fn _edit_video_path(&self, video_id: u64, path: &str) -> Result<(), Error>{
+    pub fn edit_video_path(&self, video_id: u64, path: &str) -> Result<(), Error>{
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
         conn.execute(

@@ -129,7 +129,8 @@ impl Video{
 
     pub fn set_watch_time(&self, time: u64) -> PyResult<()>{
         DATABASE.set_watch_time(self.user.clone(), self.id, time)?;
-        if time > (self.duration * 100)/90{
+        println!("duration: {}, time: {}, calc: {}", self.duration, time, (self.duration / 100) * 85);
+        if time > (self.duration / 100) * 85{
             if self.media_type == 0{
                 if let Some(movie) = self.movie()?{
                     movie.set_watched(true)?;
@@ -156,6 +157,11 @@ impl Video{
                 epiosde.delete()?;
             }
         }
+        Ok(())
+    }
+
+    pub fn set_path(&self, new_path: String) -> PyResult<()>{
+        DATABASE.edit_video_path(self.id, &new_path)?;
         Ok(())
     }
 
@@ -352,7 +358,6 @@ impl VideoSearch{
 
     pub fn unknown(&mut self) -> PyResult<VideoSearch>{
         self.find("media_id", "is", None)
-        
     }
 
     pub fn media_id(&mut self, id: u64)  -> PyResult<VideoSearch>{

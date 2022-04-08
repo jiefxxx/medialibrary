@@ -151,6 +151,8 @@ pub struct MovieResult{
     #[pyo3(get)]
     pub poster_path: String,
     #[pyo3(get)]
+    pub backdrop_path: String,
+    #[pyo3(get)]
     pub vote_average: f64,
     #[pyo3(get)]
     pub genres: Vec<String>,

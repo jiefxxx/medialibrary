@@ -398,7 +398,8 @@ impl SqlLibrary{
                                                     Tvs.vote_average,
                                                     GROUP_CONCAT(DISTINCT TvGenres.name),
                                                     MAX(Videos.adding),
-                                                    MIN(EpisodesUserWatched.watched)
+                                                    MIN(EpisodesUserWatched.watched),
+                                                    Tvs.backdrop_path
                                                 FROM Tvs
                                                 LEFT OUTER JOIN Episodes ON Tvs.id = Episodes.tv_id
                                                 INNER JOIN Videos ON Videos.media_id = Episodes.id AND Videos.media_type = 1
@@ -427,6 +428,7 @@ impl SqlLibrary{
                 genres: parse_concat(row.get(5)?).unwrap_or_default(),
                 adding: row.get(6)?,
                 watched: parse_watched(row.get(7)?),
+                backdrop_path: row.get(8)?,
             })
             
         })?;
