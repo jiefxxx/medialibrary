@@ -102,15 +102,15 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_persons(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<PersonResult>, Error>{
-        let (mut sql, param) = generate_sql("SELECT 
+    pub fn get_persons(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>,
+                    order_by: &Option<String>, limit: Option<u64>, offset: Option<u64>) -> Result<Vec<PersonResult>, Error>{
+        let (sql, param) = generate_sql("SELECT 
                                                     id,
                                                     name,
                                                     birthday,
                                                     profile_path 
                                                 FROM Persons
-                                                ", parameters, None);
-        sql += "\nGROUP BY Persons.id";
+                                                ", parameters, None, Some("Persons.id"), order_by, limit, offset);
 
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();

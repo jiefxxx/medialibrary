@@ -1,4 +1,4 @@
-use pyo3::PyObjectProtocol;
+
 use pyo3::prelude::*;
 
 #[pyclass]
@@ -10,8 +10,8 @@ pub struct Trailer{
     pub youtube_id: String,
 }
 
-#[pyproto]
-impl PyObjectProtocol for Trailer {
+#[pymethods]
+impl Trailer {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }

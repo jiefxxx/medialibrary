@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use pyo3::PyObjectProtocol;
 use pyo3::types::PyList;
 use pyo3::{prelude::*, types::PyTuple};
 use regex::Regex;
@@ -168,6 +167,14 @@ impl Video{
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
     }
+
+    fn __str__(&self) -> PyResult<String>   {
+        Ok(format!("{:?}", self))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
+    }
 }
 
 impl Video{
@@ -238,17 +245,6 @@ impl Video{
 }
 
 
-#[pyproto]
-impl PyObjectProtocol for Video {
-    fn __str__(&self) -> PyResult<String>   {
-        Ok(format!("{:?}", self))
-    }
-
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self))
-    }
-}
-
 #[pyclass]
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 pub struct MovieMinimal{
@@ -312,11 +308,6 @@ impl VideoResult{
         Ok(DATABASE.get_video(&self.user, self.id)?.unwrap())
     }
 
-}
-
-
-#[pyproto]
-impl PyObjectProtocol for VideoResult {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -324,6 +315,7 @@ impl PyObjectProtocol for VideoResult {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
+
 }
 
 #[pyclass]
@@ -331,6 +323,7 @@ impl PyObjectProtocol for VideoResult {
 pub struct VideoSearch{
    parameters: HashMap<String, Option<(String, String)>>,
    user: String,
+   order_by: Option<String>,
 }
 
 impl VideoSearch{
@@ -338,6 +331,7 @@ impl VideoSearch{
         VideoSearch{
             parameters: HashMap::new(),
             user: user.clone(),
+            order_by: None,
         }
     }
 }
@@ -379,26 +373,29 @@ impl VideoSearch{
         
     }
 
-    pub fn exist(&self) -> PyResult<bool>{
-        Ok(self.results()?.len() > 0)
-    } 
+    pub fn order_by(&mut self, order_by: String) -> PyResult<VideoSearch>{
+        self.order_by = Some(order_by);
+        Ok(self.clone())
 
-    pub fn results(&self) -> PyResult<Vec<VideoResult>>{
-        Ok(DATABASE.get_videos(&self.user, &self.parameters)?)
     }
 
-    pub fn json_results(&self) -> PyResult<String>{
-        let list = self.results()?;
+    pub fn exist(&self) -> PyResult<bool>{
+        Ok(self.results(None, None)?.len() > 0)
+    } 
+
+    pub fn results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<Vec<VideoResult>>{
+        Ok(DATABASE.get_videos(&self.user, &self.parameters, &self.order_by, limit, offset)?)
+    }
+
+    pub fn json_results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<String>{
+        let list = self.results(limit, offset)?;
         Ok(serde_json::to_string(&list).unwrap())
     }
 
     pub fn last(&self) -> PyResult<Option<VideoResult>>{
-        Ok(self.results()?.pop())
+        Ok(self.results(None, None)?.pop())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for VideoSearch {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }

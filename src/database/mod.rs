@@ -634,7 +634,8 @@ pub fn parse_watched(row: Option<u64>) -> u64{
     return 0
 }
 
-pub fn generate_sql<'a>(head: &str, parameters: &'a HashMap<String, Option<(String, String)>>, user: Option<&'a String>) -> (String, Vec<&'a dyn ToSql>){
+pub fn generate_sql<'a>(head: &str, parameters: &'a HashMap<String, Option<(String, String)>>, user: Option<&'a String>,
+                group_by: Option<&'a str>, order_by: &'a Option<String>, limit: Option<u64>, offset: Option<u64>) -> (String, Vec<&'a dyn ToSql>){
     let mut param :Vec<&dyn ToSql> = Vec::new();
     let mut sql = head.to_string();
     if let Some(user) = user{
@@ -659,7 +660,28 @@ pub fn generate_sql<'a>(head: &str, parameters: &'a HashMap<String, Option<(Stri
             
             counter += 1;
         }
+        sql += "\n"
     }
+
+    if let Some(group_by) = group_by{
+        sql += &format!("GROUP BY {} \n", group_by);
+    }
+
+    if let Some(order_by) = order_by{
+        sql += &format!("ORDER BY {} \n", order_by);
+    }
+
+    if let Some(limit) = limit{
+        sql += &format!("LIMIT {}", limit);
+        if let Some(offset) = offset{
+            sql += &format!(" OFFSET {} \n", offset)
+        }
+        else{
+            sql += "\n"
+        }
+    }
+
+
     //sql += ";";
 
     // println!("sql: {}", &sql);

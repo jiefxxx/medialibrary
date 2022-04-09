@@ -108,8 +108,9 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_collections(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<CollectionResult>, Error>{
-        let (mut sql, param) = generate_sql("SELECT 
+    pub fn get_collections(&self, user: &String, parameters: &HashMap<String, 
+                        Option<(String, String)>>, order_by: &Option<String>, limit: Option<u64>, offset: Option<u64>) -> Result<Vec<CollectionResult>, Error>{
+        let (sql, param) = generate_sql("SELECT 
                                                     Collections.id,
                                                     Collections.name,
                                                     Collections.creator,
@@ -118,8 +119,7 @@ impl SqlLibrary{
                                                 FROM Collections
                                                 LEFT OUTER JOIN MovieCollectionLinks ON Collections.id = MovieCollectionLinks.collection_id
                                                 LEFT OUTER JOIN TvCollectionLinks ON Collections.id = TvCollectionLinks.collection_id
-                                                ", &parameters, None);
-                                                sql += "\nGROUP BY Collections.id";
+                                                ", &parameters, None, Some("Collections.id"), order_by, limit, offset);
         // println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();

@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 
 #[pyclass]
-#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
-pub struct Keyword{
+#[derive(Debug, Serialize, Clone)]
+pub struct Genre{
     #[pyo3(get)]
     pub id: u64,
     #[pyo3(get)]
@@ -10,7 +10,7 @@ pub struct Keyword{
 }
 
 #[pymethods]
-impl Keyword {
+impl Genre{
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }

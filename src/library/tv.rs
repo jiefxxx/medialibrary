@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use pyo3::PyObjectProtocol;
 use pyo3::prelude::*;
 
 use crate::database::DATABASE;
@@ -95,7 +94,7 @@ impl Tv{
     }
 
     pub fn set_collection(&mut self) -> PyResult<()>{
-        self.collection = CollectionSearch::new(&self.user).tv(self.id)?.results()?;
+        self.collection = CollectionSearch::new(&self.user).tv(self.id)?.results(None, None)?;
         Ok(())
     }
 
@@ -134,10 +133,6 @@ impl Tv{
         return Ok(serde_json::to_string(self).unwrap())
     }
 
-}
-
-#[pyproto]
-impl PyObjectProtocol for Tv {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -145,6 +140,7 @@ impl PyObjectProtocol for Tv {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
+
 }
 
 #[pyclass]
@@ -176,11 +172,7 @@ impl TvResult{
     pub fn full(&self) -> PyResult<Tv>{
         Ok(DATABASE.get_tv(&self.user, self.id)?.unwrap())
     }
-}
 
-
-#[pyproto]
-impl PyObjectProtocol for TvResult {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -190,11 +182,13 @@ impl PyObjectProtocol for TvResult {
     }
 }
 
+
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct TvSearch{
    parameters: HashMap<String, Option<(String, String)>>,
    user: String,
+   order_by: Option<String>,
 }
 
 impl TvSearch{
@@ -202,6 +196,7 @@ impl TvSearch{
         TvSearch{
             parameters: HashMap::new(),
             user: user.clone(),
+            order_by: None,
         }
     }
 }
@@ -233,27 +228,28 @@ impl TvSearch{
         }
         Ok(self.clone())
     }
-
-    pub fn exist(&self) -> PyResult<bool>{
-        Ok(self.results()?.len() > 0)
-    } 
-
-    pub fn results(&self) -> PyResult<Vec<TvResult>>{
-        Ok(DATABASE.get_tvs(&self.user, &self.parameters)?)
+    pub fn order_by(&mut self, order_by: String) -> PyResult<TvSearch>{
+        self.order_by = Some(order_by);
+        Ok(self.clone())
     }
 
-    pub fn json_results(&self) -> PyResult<String>{
-        let list = self.results()?;
+    pub fn exist(&self) -> PyResult<bool>{
+        Ok(self.results(None, None)?.len() > 0)
+    } 
+
+    pub fn results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<Vec<TvResult>>{
+        Ok(DATABASE.get_tvs(&self.user, &self.parameters, &self.order_by, limit, offset)?)
+    }
+
+    pub fn json_results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<String>{
+        let list = self.results(limit, offset)?;
         Ok(serde_json::to_string(&list).unwrap())
     }
 
     pub fn last(&self) -> PyResult<Option<TvResult>>{
-        Ok(self.results()?.pop())
+        Ok(self.results(None, None)?.pop())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for TvSearch {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -304,7 +300,7 @@ impl Season{
     }
 
     pub fn set_episodes(&mut self) -> PyResult<()>{
-        self.episodes = EpisodeSearch::new(&self.user).tv(self.tv_id)?.season(self.season_number)?.results()?;
+        self.episodes = EpisodeSearch::new(&self.user).tv(self.tv_id)?.season(self.season_number)?.results(None, None)?;
         Ok(())
     }
 
@@ -327,11 +323,6 @@ impl Season{
         return Ok(serde_json::to_string(self).unwrap())
     }
 
-}
-
-
-#[pyproto]
-impl PyObjectProtocol for Season {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -339,13 +330,16 @@ impl PyObjectProtocol for Season {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
+
 }
+
 
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct EpisodeSearch{
    parameters: HashMap<String, Option<(String, String)>>,
    user: String,
+   order_by: Option<String>,
 }
 
 impl EpisodeSearch{
@@ -353,6 +347,7 @@ impl EpisodeSearch{
         EpisodeSearch{
             parameters: HashMap::new(),
             user: user.clone(),
+            order_by: None,
         }
     }
 }
@@ -393,21 +388,34 @@ impl EpisodeSearch{
         self.find("EpisodeCrews.person_id", "=", Some(person_id.to_string()))
     }
 
-    pub fn last(&self) -> PyResult<Option<Episode>>{
-        Ok(self.results()?.pop())
+    pub fn order_by(&mut self, order_by: String) -> PyResult<EpisodeSearch>{
+        self.order_by = Some(order_by);
+        Ok(self.clone())
     }
 
     pub fn exist(&self) -> PyResult<bool>{
-        Ok(self.results()?.len() > 0)
+        Ok(self.results(None, None)?.len() > 0)
     } 
 
-    pub fn results(&self) -> PyResult<Vec<Episode>>{
-        Ok(DATABASE.get_episodes(&self.user, &self.parameters)?)
+    pub fn results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<Vec<Episode>>{
+        Ok(DATABASE.get_episodes(&self.user, &self.parameters, &self.order_by, limit, offset)?)
     }
 
-    pub fn json_results(&self) -> PyResult<String>{
-        let list = self.results()?;
+    pub fn json_results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<String>{
+        let list = self.results(limit, offset)?;
         Ok(serde_json::to_string(&list).unwrap())
+    }
+
+    pub fn last(&self) -> PyResult<Option<Episode>>{
+        Ok(self.results(None, None)?.pop())
+    }
+
+    fn __str__(&self) -> PyResult<String>{
+        Ok(format!("{:?}", self))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
     }
 }
 
@@ -469,7 +477,7 @@ impl Episode{
     }
 
     pub fn set_videos(&mut self) -> PyResult<()>{
-        self.video = VideoSearch::new(&self.user).tv()?.media_id(self.id)?.results()?;
+        self.video = VideoSearch::new(&self.user).tv()?.media_id(self.id)?.results(None, None)?;
         Ok(())
     }
 
@@ -511,12 +519,6 @@ impl Episode{
         return Ok(serde_json::to_string(self).unwrap())
     }
 
-}
-
-
-
-#[pyproto]
-impl PyObjectProtocol for Episode {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -524,4 +526,5 @@ impl PyObjectProtocol for Episode {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
+
 }

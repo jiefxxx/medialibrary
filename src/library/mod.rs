@@ -14,6 +14,7 @@ pub mod cast;
 pub mod keyword;
 pub mod trailer;
 pub mod collection;
+pub mod genre;
 
 use video::Video;
 
@@ -98,6 +99,16 @@ impl Library {
 
     pub fn collections(&self, user: String) -> CollectionSearch{
         CollectionSearch::new(&user)
+    }
+
+    pub fn genre_movie_json(&self) -> PyResult<String>{
+        let list = DATABASE.genre_movie()?;
+        Ok(serde_json::to_string(&list).unwrap())
+    }
+
+    pub fn genre_tv_json(&self) -> PyResult<String>{
+        let list = DATABASE.genre_tv()?;
+        Ok(serde_json::to_string(&list).unwrap())
     }
 
 

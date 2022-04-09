@@ -104,8 +104,9 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_videos(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<VideoResult>, Error>{
-        let (mut sql, param) = generate_sql("SELECT 
+    pub fn get_videos(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>,
+            order_by: &Option<String>, limit: Option<u64>, offset: Option<u64>) -> Result<Vec<VideoResult>, Error>{
+        let (sql, param) = generate_sql("SELECT 
                                 id, 
                                 path, 
                                 media_type, 
@@ -125,8 +126,8 @@ impl SqlLibrary{
                                 t_id,
                                 WatchTimes.last_watch as last_watch
                             FROM VideosView
-                            LEFT OUTER JOIN WatchTimes ON VideosView.id = WatchTimes.video_id AND WatchTimes.user_name = ?1", &parameters, Some(user));
-        sql += "\nGROUP BY VideosView.id";
+                            LEFT OUTER JOIN WatchTimes ON VideosView.id = WatchTimes.video_id AND WatchTimes.user_name = ?1", 
+                            &parameters, Some(user), Some("VideosView.id"), order_by, limit, offset);
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();

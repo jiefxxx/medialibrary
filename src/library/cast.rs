@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use pyo3::PyObjectProtocol;
 use pyo3::prelude::*;
 
 use crate::database::DATABASE;
@@ -30,6 +29,14 @@ impl Crew{
     pub fn full(&self) -> PyResult<Person>{
         Ok(DATABASE.get_person(&self.user, self.id)?.unwrap())
     }
+
+    fn __str__(&self) -> PyResult<String>{
+        Ok(format!("{:?}", self))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
+    }
 }
 
 #[pyclass]
@@ -53,6 +60,14 @@ pub struct Cast{
 impl Cast{
     pub fn full(&self) -> PyResult<Person>{
         Ok(DATABASE.get_person(&self.user, self.id)?.unwrap())
+    }
+
+    fn __str__(&self) -> PyResult<String>{
+        Ok(format!("{:?}", self))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
     }
 }
 
@@ -93,14 +108,14 @@ pub struct Person{
 #[pymethods]
 impl Person{
     pub fn set_movie(&mut self) -> PyResult<()>{
-        self.cast_movie = MovieSearch::new(&self.user).cast(self.id)?.results()?;
-        self.crew_movie = MovieSearch::new(&self.user).crew(self.id)?.results()?;
+        self.cast_movie = MovieSearch::new(&self.user).cast(self.id)?.results(None, None)?;
+        self.crew_movie = MovieSearch::new(&self.user).crew(self.id)?.results(None, None)?;
         Ok(())
     }
 
     pub fn set_tv(&mut self) -> PyResult<()>{
-        self.cast_tv = TvSearch::new(&self.user).cast(self.id)?.results()?;
-        self.crew_tv = TvSearch::new(&self.user).crew(self.id)?.results()?;
+        self.cast_tv = TvSearch::new(&self.user).cast(self.id)?.results(None, None)?;
+        self.crew_tv = TvSearch::new(&self.user).crew(self.id)?.results(None, None)?;
         Ok(())
     }
 
@@ -127,6 +142,14 @@ impl Person{
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
     }
+
+    fn __str__(&self) -> PyResult<String>{
+        Ok(format!("{:?}", self))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
+    }
 }
 
 #[pyclass]
@@ -148,6 +171,14 @@ impl PersonResult{
     pub fn full(&self) -> PyResult<Person>{
         Ok(DATABASE.get_person(&self.user, self.id)?.unwrap())
     }
+
+    fn __str__(&self) -> PyResult<String>{
+        Ok(format!("{:?}", self))
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("{:?}", self))
+    }
 }
 
 #[pyclass]
@@ -155,6 +186,7 @@ impl PersonResult{
 pub struct PersonSearch{
    parameters: HashMap<String, Option<(String, String)>>,
    user: String,
+   order_by: Option<String>,
 }
 
 impl PersonSearch{
@@ -162,6 +194,7 @@ impl PersonSearch{
         PersonSearch{
             parameters: HashMap::new(),
             user: user.clone(),
+            order_by: None,
         }
     }
 }
@@ -182,66 +215,29 @@ impl PersonSearch{
         Ok(self.clone())
     }
 
+    pub fn order_by(&mut self, order_by: String) -> PyResult<PersonSearch>{
+        self.order_by = Some(order_by);
+        Ok(self.clone())
+
+    }
+
     pub fn exist(&self) -> PyResult<bool>{
-        Ok(self.results()?.len() > 0)
+        Ok(self.results(None, None)?.len() > 0)
+    } 
+
+    pub fn results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<Vec<PersonResult>>{
+        Ok(DATABASE.get_persons(&self.user, &self.parameters, &self.order_by, limit, offset)?)
     }
 
-    pub fn results(&self) -> PyResult<Vec<PersonResult>>{
-        Ok(DATABASE.get_persons(&self.user, &self.parameters)?)
-    }
-
-    pub fn json_results(&self) -> PyResult<String>{
-        let list = self.results()?;
+    pub fn json_results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<String>{
+        let list = self.results(limit, offset)?;
         Ok(serde_json::to_string(&list).unwrap())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for PersonSearch {
-    fn __str__(&self) -> PyResult<String>{
-        Ok(format!("{:?}", self))
+    pub fn last(&self) -> PyResult<Option<PersonResult>>{
+        Ok(self.results(None, None)?.pop())
     }
 
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self))
-    }
-}
-
-#[pyproto]
-impl PyObjectProtocol for Cast {
-    fn __str__(&self) -> PyResult<String>{
-        Ok(format!("{:?}", self))
-    }
-
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self))
-    }
-}
-
-#[pyproto]
-impl PyObjectProtocol for Person {
-    fn __str__(&self) -> PyResult<String>{
-        Ok(format!("{:?}", self))
-    }
-
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self))
-    }
-}
-
-#[pyproto]
-impl PyObjectProtocol for PersonResult {
-    fn __str__(&self) -> PyResult<String>{
-        Ok(format!("{:?}", self))
-    }
-
-    fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?}", self))
-    }
-}
-
-#[pyproto]
-impl PyObjectProtocol for Crew {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }

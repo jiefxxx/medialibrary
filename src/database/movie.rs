@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::library::cast::Cast;
 use crate::library::cast::Crew;
+use crate::library::genre::Genre;
 use crate::library::keyword::Keyword;
 use crate::library::trailer::Trailer;
 use crate::rustmdb;
@@ -235,8 +236,9 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_movies(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<MovieResult>, Error>{
-        let (mut sql, param) = generate_sql("SELECT 
+    pub fn get_movies(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>, 
+                order_by: &Option<String>, limit: Option<u64>, offset: Option<u64>) -> Result<Vec<MovieResult>, Error>{
+        let (sql, param) = generate_sql("SELECT 
                                                     Movies.id, 
                                                     Movies.title, 
                                                     Movies.release_date, 
@@ -253,8 +255,8 @@ impl SqlLibrary{
                                                 LEFT OUTER JOIN MovieCasts ON Movies.id = MovieCasts.movie_id
                                                 LEFT OUTER JOIN MovieCrews ON Movies.id = MovieCrews.movie_id
                                                 LEFT OUTER JOIN MovieCollectionLinks ON Movies.id = MovieCollectionLinks.movie_id
-                                                LEFT OUTER JOIN MovieUserWatched ON Movies.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1", &parameters, Some(user));
-                                                sql += "\nGROUP BY Movies.id";
+                                                LEFT OUTER JOIN MovieUserWatched ON Movies.id = MovieUserWatched.movie_id AND MovieUserWatched.user_name = ?1", 
+                                                &parameters, Some(user), Some("Movies.id"), order_by, limit, offset);
         // println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -388,6 +390,31 @@ impl SqlLibrary{
     
         let rows = stmt.query_map(&[&movie_id.to_string()], |row| {
             Ok(Keyword{
+                name: row.get(0)?,
+                id: row.get(1)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn genre_movie(&self) -> Result<Vec<Genre>, Error>{
+        let sql = "SELECT
+                            name,
+                            id
+                        FROM MovieGenres";
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map([], |row| {
+            Ok(Genre{
                 name: row.get(0)?,
                 id: row.get(1)?,
             })

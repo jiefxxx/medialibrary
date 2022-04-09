@@ -1,7 +1,6 @@
 
 use std::collections::HashMap;
 
-use pyo3::PyObjectProtocol;
 use pyo3::prelude::*;
 
 use crate::database::DATABASE;
@@ -71,12 +70,12 @@ pub struct Movie{
 impl Movie{
 
     pub fn set_videos(&mut self) -> PyResult<()>{
-        self.video = VideoSearch::new(&self.user).movie()?.media_id(self.id)?.results()?;
+        self.video = VideoSearch::new(&self.user).movie()?.media_id(self.id)?.results(None, None)?;
         Ok(())
     }
 
     pub fn set_collection(&mut self) -> PyResult<()>{
-        self.collection = CollectionSearch::new(&self.user).movie(self.id)?.results()?;
+        self.collection = CollectionSearch::new(&self.user).movie(self.id)?.results(None, None)?;
         Ok(())
     }
 
@@ -125,10 +124,6 @@ impl Movie{
         return Ok(serde_json::to_string(self).unwrap())
     }
 
-}
-
-#[pyproto]
-impl PyObjectProtocol for Movie {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -136,6 +131,7 @@ impl PyObjectProtocol for Movie {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!("{:?}", self))
     }
+
 }
 
 #[pyclass]
@@ -167,11 +163,7 @@ impl MovieResult{
     pub fn full(&self) -> PyResult<Movie>{
         Ok(DATABASE.get_movie(&self.user, self.id)?.unwrap())
     }
-}
 
-
-#[pyproto]
-impl PyObjectProtocol for MovieResult {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -186,6 +178,7 @@ impl PyObjectProtocol for MovieResult {
 pub struct MovieSearch{
    parameters: HashMap<String, Option<(String, String)>>,
    user: String,
+   order_by: Option<String>,
 }
 
 impl MovieSearch{
@@ -193,6 +186,7 @@ impl MovieSearch{
         MovieSearch{
             parameters: HashMap::new(),
             user: user.clone(),
+            order_by: None,
         }
     }
 }
@@ -225,26 +219,29 @@ impl MovieSearch{
         Ok(self.clone())
     }
 
-    pub fn exist(&self) -> PyResult<bool>{
-        Ok(self.results()?.len() > 0)
-    }   
+    pub fn order_by(&mut self, order_by: String) -> PyResult<MovieSearch>{
+        self.order_by = Some(order_by);
+        Ok(self.clone())
 
-    pub fn results(&self) -> PyResult<Vec<MovieResult>>{
-        Ok(DATABASE.get_movies(&self.user, &self.parameters)?)
     }
 
-    pub fn json_results(&self) -> PyResult<String>{
-        let list = self.results()?;
+    pub fn exist(&self) -> PyResult<bool>{
+        Ok(self.results(None, None)?.len() > 0)
+    } 
+
+    pub fn results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<Vec<MovieResult>>{
+        Ok(DATABASE.get_movies(&self.user, &self.parameters, &self.order_by, limit, offset)?)
+    }
+
+    pub fn json_results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<String>{
+        let list = self.results(limit, offset)?;
         Ok(serde_json::to_string(&list).unwrap())
     }
 
     pub fn last(&self) -> PyResult<Option<MovieResult>>{
-        Ok(self.results()?.pop())
+        Ok(self.results(None, None)?.pop())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for MovieSearch {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::database::parse_watched;
 use crate::library::cast::Cast;
 use crate::library::cast::Crew;
+use crate::library::genre::Genre;
 use crate::library::keyword::Keyword;
 use crate::library::trailer::Trailer;
 use crate::library::tv::Episode;
@@ -341,7 +342,7 @@ impl SqlLibrary{
                             TvsView.number_of_seasons, 
                             TvsView.episode_run_time, 
                             TvsView.adding,
-                            MIN(EpisodesUserWatched.watched),
+                            MIN(COALESCE(EpisodesUserWatched.watched, 0)),
                             TvsView.updated
                         FROM TvsView
                         LEFT OUTER JOIN Episodes ON TvsView.id = Episodes.tv_id
@@ -389,8 +390,9 @@ impl SqlLibrary{
         Ok(None)
     }
 
-    pub fn get_tvs(&self,user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<TvResult>, Error>{
-        let (mut sql, param) = generate_sql("SELECT 
+    pub fn get_tvs(&self,user: &String, parameters: &HashMap<String, Option<(String, String)>>, 
+                    order_by: &Option<String>, limit: Option<u64>, offset: Option<u64>) -> Result<Vec<TvResult>, Error>{
+        let (sql, param) = generate_sql("SELECT 
                                                     Tvs.id,
                                                     Tvs.title,
                                                     Tvs.release_date,
@@ -398,7 +400,7 @@ impl SqlLibrary{
                                                     Tvs.vote_average,
                                                     GROUP_CONCAT(DISTINCT TvGenres.name),
                                                     MAX(Videos.adding),
-                                                    MIN(EpisodesUserWatched.watched),
+                                                    MIN(COALESCE(EpisodesUserWatched.watched, 0)),
                                                     Tvs.backdrop_path
                                                 FROM Tvs
                                                 LEFT OUTER JOIN Episodes ON Tvs.id = Episodes.tv_id
@@ -409,8 +411,7 @@ impl SqlLibrary{
                                                 LEFT OUTER JOIN TvCrews ON Tvs.id = TvCrews.tv_id
                                                 LEFT OUTER JOIN TvCollectionLinks ON Tvs.id = TvCollectionLinks.tv_id
                                                 LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                                                ", parameters, Some(user));
-        sql += "\nGROUP BY Tvs.id";
+                                                ", parameters, Some(user), Some("Tvs.id"), order_by, limit, offset);
 
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
@@ -440,6 +441,8 @@ impl SqlLibrary{
         Ok(result)
     }
 
+    
+
     pub fn get_seasons(&self, user: &String, tv_id: u64) -> Result<Vec<Season>, Error>{
         let sql = "SELECT
                             SeasonsView.season_number,
@@ -449,7 +452,7 @@ impl SqlLibrary{
                             SeasonsView.poster_path,
                             SeasonsView.release_date,
                             SeasonsView.tv_id,
-                            MIN(EpisodesUserWatched.watched),
+                            MIN(COALESCE(EpisodesUserWatched.watched, 0)),
                             SeasonsView.updated
                         FROM SeasonsView
                         LEFT OUTER JOIN Episodes ON SeasonsView.tv_id = Episodes.tv_id AND SeasonsView.season_number = Episodes.season_number
@@ -488,8 +491,9 @@ impl SqlLibrary{
         Ok(result)
     }
 
-    pub fn get_episodes(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>) -> Result<Vec<Episode>, Error>{
-        let (mut sql, param) = generate_sql("SELECT 
+    pub fn get_episodes(&self, user: &String, parameters: &HashMap<String, Option<(String, String)>>, 
+                order_by: &Option<String>, limit: Option<u64>, offset: Option<u64>) -> Result<Vec<Episode>, Error>{
+        let (sql, param) = generate_sql("SELECT 
                                                     Episodes.season_number,
                                                     Episodes.episode_number,
                                                     Episodes.release_date,
@@ -509,8 +513,7 @@ impl SqlLibrary{
                                                 LEFT OUTER JOIN EpisodeCasts ON Episodes.id = EpisodeCasts.episode_id
                                                 LEFT OUTER JOIN EpisodeCrews ON Episodes.id = EpisodeCrews.episode_id
                                                 LEFT OUTER JOIN EpisodesUserWatched ON Episodes.id = EpisodesUserWatched.episode_id AND EpisodesUserWatched.user_name = ?1
-                                                ", parameters, Some(user));
-        sql += "\nGROUP BY Episodes.id";
+                                                ", parameters, Some(user), Some("Episodes.id"), order_by, limit, offset);
         //println!("sql: {}", &sql);
         let m_conn = self.conn.lock().unwrap();
         let conn = m_conn.as_ref().unwrap();
@@ -726,6 +729,31 @@ impl SqlLibrary{
     
         let rows = stmt.query_map(&[&tv_id.to_string()], |row| {
             Ok(Keyword{
+                name: row.get(0)?,
+                id: row.get(1)?,
+            })
+            
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows{
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    pub fn genre_tv(&self) -> Result<Vec<Genre>, Error>{
+        let sql = "SELECT
+                            name,
+                            id
+                        FROM TvGenres";
+        //println!("sql: {}", &sql);
+        let m_conn = self.conn.lock().unwrap();
+        let conn = m_conn.as_ref().unwrap();
+        let mut stmt = conn.prepare(&sql)?;
+    
+        let rows = stmt.query_map([], |row| {
+            Ok(Genre{
                 name: row.get(0)?,
                 id: row.get(1)?,
             })

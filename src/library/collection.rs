@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use pyo3::PyObjectProtocol;
 use pyo3::prelude::*;
 
 use crate::database::DATABASE;
@@ -38,13 +37,13 @@ impl Collection{
 
     pub fn set_movie(&mut self) -> PyResult<()>{
         println!("self.id {}", self.id);
-        self.movie = MovieSearch::new(&self.user).collection(self.id)?.results()?;
+        self.movie = MovieSearch::new(&self.user).collection(self.id)?.results(None, None)?;
         println!("self.id {:?}", self.movie);
         Ok(())
     }
 
     pub fn set_tv(&mut self) -> PyResult<()>{
-        self.tv = TvSearch::new(&self.user).collection(self.id)?.results()?;
+        self.tv = TvSearch::new(&self.user).collection(self.id)?.results(None, None)?;
         Ok(())
     }
 
@@ -85,10 +84,7 @@ impl Collection{
     pub fn json(&self) -> PyResult<String>{
         return Ok(serde_json::to_string(self).unwrap())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for Collection {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -120,10 +116,7 @@ impl CollectionResult{
     pub fn full(&self) -> PyResult<Collection>{
         Ok(DATABASE.get_collection(&self.user, self.id)?.unwrap())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for CollectionResult {
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
@@ -138,6 +131,7 @@ impl PyObjectProtocol for CollectionResult {
 pub struct CollectionSearch{
    parameters: HashMap<String, Option<(String, String)>>,
    user: String,
+   order_by: Option<String>,
 }
 
 impl CollectionSearch{
@@ -145,6 +139,7 @@ impl CollectionSearch{
         CollectionSearch{
             parameters: HashMap::new(),
             user: user.clone(),
+            order_by: None,
         }
     }
 }
@@ -173,22 +168,29 @@ impl CollectionSearch{
         Ok(self.clone())
     }
 
+    pub fn order_by(&mut self, order_by: String) -> PyResult<CollectionSearch>{
+        self.order_by = Some(order_by);
+        Ok(self.clone())
+
+    }
+
     pub fn exist(&self) -> PyResult<bool>{
-        Ok(self.results()?.len() > 0)
+        Ok(self.results(None, None)?.len() > 0)
     } 
 
-    pub fn results(&self) -> PyResult<Vec<CollectionResult>>{
-        Ok(DATABASE.get_collections(&self.user, &self.parameters)?)
+    pub fn results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<Vec<CollectionResult>>{
+        Ok(DATABASE.get_collections(&self.user, &self.parameters, &self.order_by, limit, offset)?)
     }
 
-    pub fn json_results(&self) -> PyResult<String>{
-        let list = self.results()?;
+    pub fn json_results(&self, limit: Option<u64>, offset: Option<u64>) -> PyResult<String>{
+        let list = self.results(limit, offset)?;
         Ok(serde_json::to_string(&list).unwrap())
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for CollectionSearch {
+    pub fn last(&self) -> PyResult<Option<CollectionResult>>{
+        Ok(self.results(None, None)?.pop())
+    }
+
     fn __str__(&self) -> PyResult<String>{
         Ok(format!("{:?}", self))
     }
